@@ -1,0 +1,44 @@
+# Installed libraries, indexes, and private runtime data belong outside this repo.
+/data/
+/library/
+/sources/
+/index/
+/cache/
+/dewey-library/
+/dewey-cache/
+/backups/
+
+# Machine-local configuration and credentials.
+.env
+.env.*
+*.local.json
+*.local.yaml
+*.local.yml
+*.pem
+*.key
+*.p12
+*.pfx
+*.kdbx
+id_rsa*
+id_ed25519*
+.ssh/
+
+# Databases, exports, and generated archives.
+*.db
+*.db-*
+*.sqlite
+*.sqlite-*
+*.sqlite3
+*.sqlite3-*
+*.sql
+*.dump
+*.log
+*.tar
+*.tar.*
+*.tgz
+*.zip
+*.7z
+*.bak
+
+node_modules/
+.DS_Store

@@ -1,0 +1,51 @@
+# Run setup first, stop it, then start library. Never run both together.
+services:
+  library:
+    image: dewey:local
+    build: .
+    pull_policy: never
+    user: "${DEWEY_UID:-1000}:${DEWEY_GID:-1000}"
+    ports: ["127.0.0.1:8080:8080"]
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    volumes:
+      - type: bind
+        source: ${DEWEY_LIBRARY_ROOT:-../dewey-library}
+        target: /sources
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${DEWEY_INDEX:-../dewey-cache}
+        target: /index
+        bind:
+          create_host_path: false
+    restart: "no"
+  setup:
+    profiles: [setup]
+    image: dewey:local
+    build: .
+    pull_policy: never
+    user: "${DEWEY_UID:-1000}:${DEWEY_GID:-1000}"
+    ports: ["127.0.0.1:8080:8080"]
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    environment:
+      DEWEY_SETUP: "1"
+    volumes:
+      - type: bind
+        source: ${DEWEY_LIBRARY_ROOT:-../dewey-library}
+        target: /sources
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${DEWEY_INDEX:-../dewey-cache}
+        target: /index
+        bind:
+          create_host_path: false
+    restart: "no"
+networks:
+  default:
+    internal: true

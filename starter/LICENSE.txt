@@ -1,0 +1,7 @@
+CC0 1.0 Universal
+
+To the extent possible under law, the contributors dedicate these original starter demonstration texts to the public domain worldwide under CC0 1.0 Universal, waiving copyright and related rights. No warranty is provided.
+
+SPDX-License-Identifier: CC0-1.0
+Canonical legal terms: https://creativecommons.org/publicdomain/zero/1.0/legalcode
+No connection is required to read or use the bundled texts.

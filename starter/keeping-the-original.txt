@@ -1,0 +1,7 @@
+KEEPING THE ORIGINAL
+
+The source is the text you keep. An index is a map that helps software find words in that text. If the map is lost, it can be drawn again from the original.
+
+A checksum is a fingerprint of a file. Matching SHA-256 checksums can confirm two copies contain the same bytes. They do not prove that a claim in a text is true, or that an author is trustworthy.
+
+This original demonstration text was written for the Dewey prototype and dedicated to the public domain under CC0 1.0.

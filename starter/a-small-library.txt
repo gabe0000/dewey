@@ -1,0 +1,5 @@
+A SMALL LIBRARY
+
+A shelf can begin with three texts. Give each text a title, a topic, and a record of where it came from. Keep original files separate from the tools that help you find them.
+
+This original demonstration text is not an authoritative reference. It was written for the Dewey prototype and dedicated to the public domain under CC0 1.0.

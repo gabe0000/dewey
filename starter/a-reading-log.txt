@@ -1,0 +1,10 @@
+A READING LOG
+
+Title: The text I opened
+Question: What am I hoping to learn?
+Observation: A passage I want to revisit
+Source: Where this copy came from
+
+A reading log can be a plain text file. Plain formats are easy to inspect and copy, even when the application changes.
+
+This original demonstration text was written for the Dewey prototype and dedicated to the public domain under CC0 1.0.

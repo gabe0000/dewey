@@ -1,0 +1,32 @@
+{
+  "schema": 1,
+  "documents": [
+    {
+      "id": "a-small-library",
+      "title": "A small library",
+      "topic": "Library craft",
+      "file": "a-small-library.txt",
+      "license": "CC0-1.0",
+      "provenance": "Original illustrative text created for Dewey prototype; not an external reference work.",
+      "sha256": "ca8f65dd40b5712d25fad81be39c3bc27edb639cf6f4e12de507ad8f01b1949a"
+    },
+    {
+      "id": "keeping-the-original",
+      "title": "Keeping the original",
+      "topic": "Storage basics",
+      "file": "keeping-the-original.txt",
+      "license": "CC0-1.0",
+      "provenance": "Original illustrative text created for Dewey prototype; not an external reference work.",
+      "sha256": "981ff47eb056dfc20f0b340cbb89b8b2046419d8306736cf3a05b04f4f798d45"
+    },
+    {
+      "id": "a-reading-log",
+      "title": "A reading log",
+      "topic": "Library craft",
+      "file": "a-reading-log.txt",
+      "license": "CC0-1.0",
+      "provenance": "Original illustrative text created for Dewey prototype; not an external reference work.",
+      "sha256": "4f45e1d93417beb17a488bf710d5dc52575c3563f03ba372d436446c146794a0"
+    }
+  ]
+}

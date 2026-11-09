@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Dewey · Offline library</title>
+<link rel="stylesheet" href="/style.css">
+<body>
+<header>
+<span class="mark">d.</span>
+<div>
+<h1>Dewey</h1>
+<p>Your library. On your shelf. Offline.</p>
+</div>
+<span class="badge">LOCAL ONLY</span>
+</header>
+<main>
+<section id="setup" hidden>
+<h2>Start with a small shelf</h2>
+<p>Install three original CC0 sample texts bundled with Dewey. No downloads, accounts, or AI. These demonstrate the catalog, not a reference collection.</p>
+<button id="install">Install starter collection</button>
+</section>
+<form id="filters">
+<label>Search every word<input id="query" type="search" placeholder="Try “checksum”" autocomplete="off">
+</label>
+<label>Shelf<select id="topic">
+<option value="">All shelves</option>
+</select>
+</label>
+</form>
+<p id="status" role="status" aria-live="polite">
+</p>
+<div class="layout">
+<section aria-label="Catalog" id="catalog">
+</section>
+<article id="reader" aria-label="Source reader">
+<h2>A little library, built to last.</h2>
+<p>Choose a text to read its original source and inspect where it came from.</p>
+<p>All source text stays on your disk. The search index can be rebuilt.</p>
+</article>
+</div>
+</main>
+<footer>Dewey prototype · no remote services · sources verified with SHA-256</footer>
+<script type="module" src="/app.js">
+</script>
+</body>
+</html>
