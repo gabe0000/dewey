@@ -3,3 +3,5 @@
 .k-original{white-space:pre-wrap;font:12px/1.7 system-ui,sans-serif;max-height:500px;overflow:auto;background:#fffefa;padding:15px}
 
 .k-hero[hidden]{display:none}.k-guide-links a{font-size:13px;line-height:1.4;padding:9px 11px}
+
+@media(max-width:740px){.k-filters input,.k-filters select,.k-form input,.k-form select{font-size:16px}}

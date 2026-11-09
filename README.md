@@ -226,3 +226,7 @@ Dewey remains usable by people without an LLM. A local HTTP client can start at 
 The HTTP discovery and read routes are implemented and integration-tested using Node fetch. Browser verification is recorded separately. No MCP server/connector is implemented, installed, registered or tested; that adapter remains future work. No model is connected and no AI execution is enabled. Compatibility with every agent is not claimed.
 
 PDF.js is Apache-2.0 licensed; its bundled font, CMap, ICC and codec notices remain in the installed package. The PDF.js license is available at `/vendor/pdfjs/LICENSE`; the optional Node canvas dependency is MIT licensed. Keep dependency license files when distributing a prepared offline installation or image.
+
+## Browser and phone verification
+
+Phone layouts use a compact lesson selector, readable form controls and PDF fit-width resizing. See the [dated browser/device test matrix](docs/browser-compatibility.md) for the exact Chrome/Safari checks and limitations. Desktop responsive viewports are not real iPhone or Android tests. In this pass Safari's automated window reported itself hidden, so normal canvas drawing remains unverified; PDF text/search and the native-browser PDF fallback were checked. The current loopback preview serves only the host computer and cannot be opened from another device. Cross-device hosting and authentication have not been configured.

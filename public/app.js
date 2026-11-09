@@ -4,6 +4,7 @@ const el = (tag,text) => {const n=document.createElement(tag); n.textContent=tex
 function showError(error) {
   $('status').textContent = error.message;
   if (error.offline) {
+    $('reader').setAttribute?.('aria-busy','false');
     stopReader();stopReader=()=>{};
     sequence++;
     readerSequence++;
@@ -43,14 +44,17 @@ async function catalog() {
   } catch(e) {if(seq===sequence)showError(e);}
 }
 let readerSequence=0,stopReader=()=>{};
-async function view(id,book,chapterNumber,verseNumber) {const seq=++readerSequence;stopReader();stopReader=()=>{};try {const d=await api('/api/source/'+encodeURIComponent(id));
+async function view(id,book,chapterNumber,verseNumber) {const seq=++readerSequence;stopReader();stopReader=()=>{};
+  document.body?.classList.remove('kitchen-open','learning-open');$('reader').className='';
+  $('reader').replaceChildren(el('h2','Opening source…'),el('p','Reading and verifying the original file.'));$('reader').setAttribute?.('aria-busy','true');
+  try {const d=await api('/api/source/'+encodeURIComponent(id));
     if(seq!==readerSequence)return;
     document.body?.classList.remove('kitchen-open','learning-open');$('reader').className='';
     if(d.kind==='pdf'||d.kind==='lessons'){const {renderLearning}=await import('/learning.js');if(seq!==readerSequence)return;const cleanup=await renderLearning(d,{container:$('reader'),api,el,route:[book,chapterNumber],isCurrent:()=>seq===readerSequence,query:$('query').value});if(seq===readerSequence)stopReader=cleanup;else cleanup();return;}
-    if(d.kind==='recipes'){const {renderRecipes}=await import('/recipes.js');if(seq!==readerSequence)return;return renderRecipes(d,{container:$('reader'),api,el,token:plannerToken,route:[book,chapterNumber],isCurrent:()=>seq===readerSequence});}
+    if(d.kind==='recipes'){const {renderRecipes}=await import('/recipes.js');if(seq!==readerSequence)return;return await renderRecipes(d,{container:$('reader'),api,el,token:plannerToken,route:[book,chapterNumber],isCurrent:()=>seq===readerSequence});}
     if(d.kind==='bible')return await bibleView(d,book,chapterNumber,verseNumber,seq);
     const close=el('button','← Close source');close.onclick=()=>{location.hash='';};
-    $('reader').replaceChildren(close,el('small',d.topic),el('h2',d.title),el('pre',d.text),el('h3','Source record'),el('p',`Provenance: ${d.provenance}`),el('p',`License: ${d.license}`),el('p',`File: ${d.file}`),el('p',`SHA-256 (verified now): ${d.sha256}`));} catch(e) {if(seq===readerSequence)showError(e);}}
+    $('reader').replaceChildren(close,el('small',d.topic),el('h2',d.title),el('pre',d.text),el('h3','Source record'),el('p',`Provenance: ${d.provenance}`),el('p',`License: ${d.license}`),el('p',`File: ${d.file}`),el('p',`SHA-256 (verified now): ${d.sha256}`));$('reader').scrollIntoView?.({block:'start'});} catch(e) {if(seq===readerSequence){showError(e);if(!e.offline){const close=el('button','← Library');close.onclick=()=>{location.hash='';};$('reader').replaceChildren(close,el('h2','Source unavailable'),el('p',e.message));}}}finally{if(seq===readerSequence)$('reader').setAttribute?.('aria-busy','false');}}
 function openChapter(id,book,chapterNumber,verseNumber){
   const hash='#'+[id,book,chapterNumber,verseNumber].filter(v=>v!==undefined).map(encodeURIComponent).join('/');
   if(location.hash===hash)return view(id,book,chapterNumber,verseNumber);
@@ -110,9 +114,9 @@ async function bibleView(d,bookId,chapterNumber,verseNumber,seq){
     if(target){const button=el('button',label);button.onclick=()=>openChapter(d.id,target.book,target.chapter);paging.append(button);}
   }
   body.append(paging);
-  if(highlighted)highlighted.scrollIntoView({block:'center'});
+  if(highlighted)highlighted.scrollIntoView({block:'center'});else $('reader').scrollIntoView?.({block:'start'});
 }
-function navigate(){if(location.hash){try{view(...location.hash.slice(1).split('/').map(decodeURIComponent));}catch(error){showError(error);}}else{readerSequence++;stopReader();stopReader=()=>{};document.body?.classList.remove('kitchen-open','learning-open');$('reader').className='';
+function navigate(){if(location.hash){try{view(...location.hash.slice(1).split('/').map(decodeURIComponent));}catch(error){showError(error);}}else{readerSequence++;stopReader();stopReader=()=>{};$('reader').setAttribute?.('aria-busy','false');document.body?.classList.remove('kitchen-open','learning-open');$('reader').className='';
     $('reader').replaceChildren(el('h2','A little library, built to last.'),el('p','Choose a text to read its original source and inspect where it came from.'));}}
 window.addEventListener('hashchange',navigate);
 $('filters').onsubmit=e=>{e.preventDefault();catalog();};

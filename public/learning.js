@@ -16,7 +16,12 @@ export async function renderLearning(d,{container,api,el,route,isCurrent,query})
     const intro=el('p','Start at home. Learn one idea, try it somewhere familiar, then check your understanding. No navigation experience needed.');intro.className='learning-intro';container.append(intro);
     const layout=el('div','');layout.className='lesson-layout';const nav=el('nav','');nav.setAttribute('aria-label','Navigation lessons');nav.className='lesson-list';
     pack.lessons.forEach((l,i)=>{const a=link(`${String(i+1).padStart(2,'0')}  ${l.title}`,hash(d.id,'lesson',l.id));if(l===selected)a.setAttribute('aria-current','page');nav.append(a);});
-    const body=el('section','');body.className='lesson-body';layout.append(nav,body);container.append(layout);
+    const picker=el('select','');
+    const overview=el('option','All eight lessons');overview.value='';picker.append(overview);
+    pack.lessons.forEach((l,i)=>{const option=el('option',`${i+1}. ${l.title}`);option.value=l.id;picker.append(option);});
+    picker.value=selected?.id||'';picker.onchange=()=>{location.hash=picker.value?hash(d.id,'lesson',picker.value):hash(d.id);};
+    const mobileNav=field('Choose a lesson',picker);mobileNav.className='lesson-picker';
+    const body=el('section','');body.className='lesson-body';layout.append(nav,mobileNav,body);container.append(layout);
     if(!selected){body.append(el('h3','Eight small steps to reading the land'),el('p',pack.introduction||''));pack.lessons.forEach((l,i)=>{const card=link(`${i+1}. ${l.title}`,hash(d.id,'lesson',l.id));card.className='lesson-card';card.append(el('small',l.duration),el('p',l.summary));body.append(card);});}
     else{
       const l=selected,index=pack.lessons.indexOf(l);body.append(el('small',`LESSON ${index+1} OF ${pack.lessons.length} · ${l.duration}`),el('h3',l.title),el('p',l.summary));
@@ -33,8 +38,9 @@ export async function renderLearning(d,{container,api,el,route,isCurrent,query})
     container.append(record);container.scrollIntoView({block:'start'});return()=>{};
   }
   let alive=true,task,pdf,renderTask,drawSequence=0,scale=1,firstDraw=true;
-  const dispose=()=>{alive=false;drawSequence++;renderTask?.cancel();task?.destroy().catch(()=>{});};
+  const dispose=()=>{alive=false;window.removeEventListener('resize',resize);drawSequence++;renderTask?.cancel();task?.destroy().catch(()=>{});};
   if(returnLesson)container.append(link('← Return to your lesson',returnLesson));
+  const nativeReader=link('Open PDF in browser reader ↗','/api/original/'+d.id);nativeReader.target='_blank';nativeReader.rel='noopener';nativeReader.className='pdf-native-link';container.append(nativeReader);
   const n=Number(route[0]==='page'?route[1]:1);if(!Number.isInteger(n)||n<1||n>d.pageCount)throw Error('PDF page not found');
   const toolbar=el('form','');toolbar.className='pdf-toolbar';
   const input=el('input','');input.type='number';input.min=1;input.max=d.pageCount;input.value=n;input.required=true;
@@ -51,16 +57,21 @@ export async function renderLearning(d,{container,api,el,route,isCurrent,query})
   async function draw(){
     const seq=++drawSequence;renderTask?.cancel();if(!pdf||!alive)return;
     const page=await pdf.getPage(n);if(seq!==drawSequence||!alive)return;
-    const normal=page.getViewport({scale:1}),width=Math.min(1200,Math.max(260,viewport.clientWidth-28));const view=page.getViewport({scale:width/normal.width*scale});const ratio=Math.min(window.devicePixelRatio||1,2);
+    const normal=page.getViewport({scale:1}),width=Math.min(1200,Math.max(1,viewport.clientWidth-28));const view=page.getViewport({scale:width/normal.width*scale});const ratio=Math.min(window.devicePixelRatio||1,2);
     canvas.width=Math.floor(view.width*ratio);canvas.height=Math.floor(view.height*ratio);canvas.style.width=view.width+'px';canvas.style.height=view.height+'px';
+    if(firstDraw)container.scrollIntoView({block:'start'});
+    status.textContent=document.hidden?'Bring this browser window forward to draw the page.':'Drawing the original page…';
     renderTask=page.render({canvasContext:canvas.getContext('2d'),viewport:view,transform:ratio===1?undefined:[ratio,0,0,ratio,0,0]});
     try{await renderTask.promise;if(alive&&seq===drawSequence){status.textContent=`PDF page ${n} of ${pdf.numPages} · original page, including illustrations`;if(firstDraw){firstDraw=false;container.scrollIntoView({block:'start'});}}}catch(e){if(e.name!=='RenderingCancelledException')throw e;}
   }
   const fail=e=>{if(alive&&isCurrent())status.textContent='PDF could not load: '+e.message;};
+  let lastWidth=viewport.clientWidth;
+  function resize(){const width=viewport.clientWidth;if(width!==lastWidth){lastWidth=width;draw().catch(fail);}}
+  window.addEventListener('resize',resize);
   zoom.onchange=()=>{scale=Number(zoom.value);draw().catch(fail);};
   (async()=>{const page=await api(`/api/pdf/${d.id}?page=${n}`);if(!alive)return;text.append(el('p',page.textQuality),el('pre',page.text||'No embedded text on this page. Use the original page image.'));
-    const engine=await import('/vendor/pdfjs/build/pdf.mjs');if(!alive)return;engine.GlobalWorkerOptions.workerSrc='/vendor/pdfjs/build/pdf.worker.mjs';
-    task=engine.getDocument({url:'/api/original/'+d.id,isEvalSupported:false,enableXfa:false,cMapUrl:'/vendor/pdfjs/cmaps/',cMapPacked:true,standardFontDataUrl:'/vendor/pdfjs/standard_fonts/',wasmUrl:'/vendor/pdfjs/wasm/',iccUrl:'/vendor/pdfjs/iccs/'});pdf=await task.promise;if(alive)await draw();
+    status.textContent='Preparing the PDF reader…';const engine=await import('/vendor/pdfjs/build/pdf.mjs');if(!alive)return;engine.GlobalWorkerOptions.workerSrc='/vendor/pdfjs/build/pdf.worker.mjs';
+    status.textContent='Reading the original PDF…';task=engine.getDocument({url:'/api/original/'+d.id,isEvalSupported:false,enableXfa:false,cMapUrl:'/vendor/pdfjs/cmaps/',cMapPacked:true,standardFontDataUrl:'/vendor/pdfjs/standard_fonts/',wasmUrl:'/vendor/pdfjs/wasm/',iccUrl:'/vendor/pdfjs/iccs/'});pdf=await task.promise;if(alive){status.textContent='Drawing the original page…';await draw();}
   })().catch(fail);
   search.onsubmit=async e=>{e.preventDefault();try{const result=await api(`/api/pdf/${d.id}?q=${encodeURIComponent(q.value)}`);if(!alive)return;results.replaceChildren(el('p',q.value.trim()?`${result.total} matching pages${result.total>result.limit?' · first 100 shown':''}`:'Enter words to search embedded PDF text.'));result.matches.forEach(p=>{const a=link(`PDF page ${p.number}`,hash(d.id,'page',p.number));a.append(el('p',p.snippet));results.append(a);});}catch(e){if(alive)results.textContent=e.message;}};
   return dispose;
