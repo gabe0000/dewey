@@ -26,6 +26,11 @@ index
 cache
 dewey-library
 dewey-cache
+household
+dewey-household
+household.json
+household.previous.json
+.household.lock
 backups
 *.db
 *.db-*

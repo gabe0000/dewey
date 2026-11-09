@@ -14,11 +14,12 @@ Open http://127.0.0.1:8080 and click **Install starter collection**. The setup p
 
 To choose different storage, set `DEWEY_LIBRARY_ROOT=/absolute/path/to/library` and `DEWEY_INDEX=/absolute/path/to/local-index` before starting either mode. Do not point setup at an existing nonempty collection: it refuses to overwrite. Do not use symlink source roots, manifests, or source files. Local directories and bind mounts are supported.
 
-## Storage: three things, three lifecycles
+## Storage and lifecycles
 
 1. **Application:** this code, or the Docker image `dewey:local`. Replaceable software. It contains the tiny bundled installer, but it is not the installed library.
 2. **Library root:** `../dewey-library/` by default. This is the portable, authoritative unit: original text files plus `manifest.json`, which records titles, shelves, provenance, license identifiers and SHA-256 fingerprints. Back up this entire directory together. No absolute machine paths are stored in the manifest. No other app shares its database or directory.
 3. **Index:** `../dewey-cache/` by default. Disposable local JSON cache, rebuilt from verified sources on every start. It can be omitted during migration. Keep it on the computer running Dewey, not a NAS. The prototype loads these few texts into memory for searching; it is not sized for large collections.
+4. **Private household records (optional):** configure `DEWEY_HOUSEHOLD_ROOT` to an existing, separate directory outside the checkout, originals and index. It holds actual inventory, meal plans, groceries and cooking history. Back it up and move it with your library. It is personal data, never disposable cache or public source code. Without it, recipes and guides remain readable and planning writes are disabled.
 
 The default library and cache are siblings of the application checkout, never inside it. You can move or replace the application directory without moving either. For a durable installation, choose a dedicated library root outside the checkout (for example `/srv/dewey/library`) and a separate local index directory (for example `/var/lib/dewey-index`). These are examples, not directories this prototype creates. A future NAS mount can be the library root; configuring that mount is separate work.
 
@@ -46,7 +47,7 @@ No container has been deployed by this project. Build only after the official `n
 
 ```sh
 # Create dedicated directories as your non-root local user.
-mkdir -p ../dewey-library ../dewey-cache
+mkdir -p ../dewey-library ../dewey-cache ../dewey-household
 export DEWEY_UID=$(id -u) DEWEY_GID=$(id -g)
 docker build --pull=false --network=none -t dewey:local .
 docker compose --profile setup up --no-build setup
@@ -80,7 +81,7 @@ Tests cover install refusal on repeated/partial setup, copying/rebuilding, full-
 
 ## Boundaries
 
-No PDF extraction, arbitrary imports, background fetches, external download proxy, OCR, embeddings, user notes, or network sharing yet. Additional imports are limited to the two Bible formats described below. The local HTTP API trusts the person who can open this computer's localhost. Source directories must be controlled by that person; defenses do not make hostile concurrent filesystem mutation safe. Catalog metadata/search reflects the startup snapshot; restart after deliberate source updates. Source and Bible chapter viewing recheck checksums at each read. Search results and source text are rendered as text, never interpreted as HTML.
+No PDF extraction, arbitrary imports, background fetches, external download proxy, OCR, embeddings, user notes, or network sharing yet. Additional imports support the two Bible formats and structured recipe format described below. The local HTTP API trusts the person who can open this computer's localhost. Source directories must be controlled by that person; defenses do not make hostile concurrent filesystem mutation safe. Catalog metadata/search reflects the startup snapshot; restart after deliberate source updates. Source, Bible chapter, recipe and guide viewing recheck checksums at each read. Search results and source text are rendered as text, never interpreted as HTML.
 
 Software: MIT (`LICENSE`). Starter texts: CC0-1.0 (`starter/LICENSE.txt`). The samples are illustrative and are not health, safety, or other professional advice.
 
@@ -143,6 +144,27 @@ Other translations need their own supported import format and an authorized
 source. Dewey has no online Bible API or background download feature. This
 prototype holds its parsed collection in memory; large collections and
 additional translation formats are separate work.
+
+## Recipes and beginner guides
+
+The Recipes shelf accepts a `recipes-v1` JSON collection with quantified ingredients, equipment, ordered steps, linked offline technique guides, and optional meal chains. Homestead, Everyday, Hunting and Foraging are separate filters. Collection text is separate from this repository; tests use a small synthetic fixture. Stop the preview before importing:
+
+```sh
+npm run import:recipes -- /absolute/path/to/recipes.json /absolute/path/to/library
+# An optional third argument preserves a .tar.gz archive of upstream originals.
+```
+
+Import validates guide links, units and recipe references, preserves the source bytes and previous manifest, and refuses an existing collection. Restart to rebuild the local index. Recipes start with **Simple** and **Homestead** filters. Broader guides open from the relevant recipe step and link back to that recipe. Collection provenance records authorship, licensing, references and any testing limitations. Recipe quantities and yields need practical kitchen review; software tests do not kitchen-test a recipe.
+
+Imported community recipes can retain original Markdown and source URLs. Unmeasured ingredients remain visible for manual checking and prevent a complete stock match; shopping totals never guess these amounts. An unstated serving count is represented as one complete batch, with missing timing disclosed. Original instructions may assume prior cooking knowledge, so source limitations and linked guides remain visible. Foraging recipes assume prior expert identification of an edible species and part; this recipe reader is not a photographic field guide.
+
+To enable private planning, create a dedicated directory as your regular user and set `DEWEY_HOUSEHOLD_ROOT=/absolute/path/to/household` alongside the source/index variables. The preview never creates or guesses this folder. Compose mounts a separate writable `/household` folder for the library service; originals stay read-only. Its default host folder is `../dewey-household`. Household writes require a per-session token and reject foreign browser origins and stale revisions. A lock serializes writes; atomic replacement retains `household.previous.json`. Preserve and inspect a leftover lock after an interrupted write rather than deleting it while a server might still be writing.
+
+Pantry entries are actual quantities. Shopping is planned purchases; a purchase confirmation adds only the amount actually bought. Meal-plan simulation reserves quantities across meals and labels estimated leftovers without adding them to actual stock. Log actual use and measured leftovers after cooking. There is no sample household inventory. Matching converts compatible mass or volume units and never guesses a food's density. Salt, pepper, water and cooking oil are omitted from stock checks by default; the checkbox includes them.
+
+Leftovers carry the oldest known preparation date and accumulated refrigerator time through later dishes. Freezing pauses that recorded time. Unknown histories, missing dates, past use-by dates and some recorded storage limits trigger review and are excluded from matching. These records do not measure temperature, account for every ingredient's shelf life, or certify food as safe. Read the linked handling guide and ingredient labels. Allergen and ingredient avoidances are reminders based on the listed recipe, not an allergy certification.
+
+Back up the entire household directory while writes are stopped, separately from the source library. Restore both to preserve meal history; rebuilding the index never recreates or resets household records.
 
 ## Reliable preview of an existing library
 

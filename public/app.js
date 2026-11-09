@@ -1,5 +1,5 @@
 const $ = id => document.getElementById(id);
-let token, sequence=0;
+let token, plannerToken,sequence=0;
 const el = (tag,text) => {const n=document.createElement(tag); n.textContent=text; return n;};
 function showError(error) {
   $('status').textContent = error.message;
@@ -31,7 +31,7 @@ async function catalog() {
     $('catalog').replaceChildren();
     for(const d of data.documents) {const button=el('button','');
       button.className='book';
-      button.append(el('small',d.topic),el('h2',d.title),el('span',d.kind==='bible'?`${d.translation} · ${d.bookCount} books · ${d.verseCount.toLocaleString()} verses →`:`${d.license} · verified source →`));
+      button.append(el('small',d.topic),el('h2',d.title),el('span',d.kind==='bible'?`${d.translation} · ${d.bookCount} books · ${d.verseCount.toLocaleString()} verses →`:d.kind==='recipes'?`${d.recipeCount} recipes · ${d.homesteadCount} homestead meals →`:`${d.license} · verified source →`));
       button.onclick=()=>{
         const nextHash = '#' + encodeURIComponent(d.id);
         if (location.hash === nextHash) return view(d.id);
@@ -44,6 +44,8 @@ async function catalog() {
 let readerSequence=0;
 async function view(id,book,chapterNumber,verseNumber) {const seq=++readerSequence;try {const d=await api('/api/source/'+encodeURIComponent(id));
     if(seq!==readerSequence)return;
+    document.body?.classList.remove('kitchen-open');$('reader').className='';
+    if(d.kind==='recipes'){const {renderRecipes}=await import('/recipes.js');if(seq!==readerSequence)return;return renderRecipes(d,{container:$('reader'),api,el,token:plannerToken,route:[book,chapterNumber],isCurrent:()=>seq===readerSequence});}
     if(d.kind==='bible')return await bibleView(d,book,chapterNumber,verseNumber,seq);
     const close=el('button','← Close source');close.onclick=()=>{location.hash='';};
     $('reader').replaceChildren(close,el('small',d.topic),el('h2',d.title),el('pre',d.text),el('h3','Source record'),el('p',`Provenance: ${d.provenance}`),el('p',`License: ${d.license}`),el('p',`File: ${d.file}`),el('p',`SHA-256 (verified now): ${d.sha256}`));} catch(e) {if(seq===readerSequence)showError(e);}}
@@ -108,7 +110,7 @@ async function bibleView(d,bookId,chapterNumber,verseNumber,seq){
   body.append(paging);
   if(highlighted)highlighted.scrollIntoView({block:'center'});
 }
-function navigate(){if(location.hash){try{view(...location.hash.slice(1).split('/').map(decodeURIComponent));}catch(error){showError(error);}}else{readerSequence++;
+function navigate(){if(location.hash){try{view(...location.hash.slice(1).split('/').map(decodeURIComponent));}catch(error){showError(error);}}else{readerSequence++;document.body?.classList.remove('kitchen-open');$('reader').className='';
     $('reader').replaceChildren(el('h2','A little library, built to last.'),el('p','Choose a text to read its original source and inspect where it came from.'));}}
 window.addEventListener('hashchange',navigate);
 $('filters').onsubmit=e=>{e.preventDefault();catalog();};
@@ -118,7 +120,7 @@ $('install').onclick=async()=>{ $('install').disabled=true;try {await api('/api/
     $('setup').hidden=true;
     await catalog();} catch(e) {showError(e);
     $('install').disabled=false;}};
-try {const s=await api('/api/status');token=s.token;
+try {const s=await api('/api/status');token=s.token;plannerToken=s.plannerToken;
     if(s.setup)$('setup').append(el('p',`Sources: ${s.source}. Index: ${s.index}. Change these locations with DEWEY_LIBRARY_ROOT / DEWEY_INDEX or Compose bind mounts before installing. Normal mode mounts sources read-only.`));
     $('setup').hidden=!(s.setup && !s.count);
     if(!s.count&&!s.setup)$('reader').append(el('p','No collection installed. Start the local setup profile described in README.'));

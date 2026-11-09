@@ -3,6 +3,7 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {createHash, randomUUID} from 'node:crypto';
 import {bibleFormats,parseBibleDocument,searchVerses} from './bible.mjs';
+import {parseRecipes} from './recipes.mjs';
 export const hash = bytes => createHash('sha256').update(bytes).digest('hex');
 export const starterDir = new URL('../starter/', import.meta.url);
 async function manifestDocuments(root) {
@@ -20,7 +21,7 @@ async function manifestDocuments(root) {
     seen.add(d.id);
     if(d.file !== `${d.id}.txt` || !/^[a-f0-9]{64}$/.test(d.sha256)) throw Error('Invalid source path or checksum');
     for(const key of ['title','topic','license','provenance']) if(typeof d[key] !== 'string') throw Error('Missing metadata');
-    if(d.format!==undefined && !bibleFormats.includes(d.format)) throw Error('Unsupported document format');
+    if(d.format!==undefined && ![...bibleFormats,'recipes-v1'].includes(d.format)) throw Error('Unsupported document format');
     if(d.attachments!==undefined){
       if(!Array.isArray(d.attachments))throw Error('Invalid source attachments');
       const files=new Set();
@@ -67,7 +68,7 @@ export async function install(root) {
 }
 export async function rebuild(source, index) {
   const docs = await collection(source);
-  for(const doc of docs) if(doc.format) doc.bible=parseBibleDocument(doc);
+  for(const doc of docs){if(bibleFormats.includes(doc.format))doc.bible=parseBibleDocument(doc);else if(doc.format==='recipes-v1')doc.recipePack=parseRecipes(doc.text);}
   await mkdir(index,{recursive:true});
   const temporary = path.join(index, `catalog-${randomUUID()}.tmp`);
   await writeFile(temporary, JSON.stringify({schema:1, generatedAt:new Date().toISOString(), documents:docs}));

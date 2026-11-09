@@ -12,7 +12,12 @@ export function previewConfig(env = process.env) {
   const port = Number(env.PORT || 8080);
   if (!Number.isInteger(port) || port < 1 || port > 65535) throw Error('PORT must be between 1 and 65535.');
   if (path.resolve(source) === path.resolve(index)) throw Error('Library and cache must be separate directories.');
-  return {source, index, port, setup: false};
+  const household=env.DEWEY_HOUSEHOLD_ROOT;
+  if(household){
+    if(!path.isAbsolute(household))throw Error('Household storage must be an absolute path');
+    for(const root of [source,index])for(const [a,b] of [[root,household],[household,root]]){const rel=path.relative(a,b);if(!rel||(!rel.startsWith('..')&&!path.isAbsolute(rel)))throw Error('Household storage must be separate from originals and index');}
+  }
+  return {source,index,port,setup:false,...(household?{household}:{})};
 }
 
 export async function startPreview(env = process.env) {

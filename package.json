@@ -9,7 +9,8 @@
     "verify": "node scripts/verify.mjs",
     "preview": "node scripts/start-preview.mjs",
     "import:kjv": "node scripts/import-kjv.mjs",
-    "import:bible": "node scripts/import-bible.mjs"
+    "import:bible": "node scripts/import-bible.mjs",
+    "import:recipes": "node scripts/import-recipes.mjs"
   },
   "engines": {
     "node": ">=22"

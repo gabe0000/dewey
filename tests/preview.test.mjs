@@ -9,6 +9,7 @@ test('preview requires explicit absolute separate storage and disables setup', a
   assert.throws(() => previewConfig({DEWEY_LIBRARY_ROOT:'relative',DEWEY_INDEX:'/cache'}), /absolute paths/);
   assert.throws(() => previewConfig({DEWEY_LIBRARY_ROOT:'/same',DEWEY_INDEX:'/same'}), /separate/);
   assert.throws(() => previewConfig({DEWEY_LIBRARY_ROOT:'/library',DEWEY_INDEX:'/cache',PORT:'bad'}), /PORT/);
+  for(const household of ['/library/private','/cache','/'])assert.throws(()=>previewConfig({DEWEY_LIBRARY_ROOT:'/library',DEWEY_INDEX:'/cache',DEWEY_HOUSEHOLD_ROOT:household}),/separate/);
   assert.deepEqual(previewConfig({DEWEY_LIBRARY_ROOT:'/library',DEWEY_INDEX:'/cache',DEWEY_SETUP:'1'}), {source:'/library',index:'/cache',port:8080,setup:false});
   await assert.rejects(startPreview({DEWEY_LIBRARY_ROOT:'/nonexistent-dewey-test-library',DEWEY_INDEX:'/nonexistent-dewey-test-cache'}), /No installed collection/);
 });

@@ -31,7 +31,7 @@ export async function importBible(translation,sourceFile,library,archiveFile){
     archive=await regularFile(archiveFile,50*1024*1024);
     if(!archive.subarray(0,4).equals(Buffer.from([80,75,3,4])))throw Error('Expected the original ZIP archive');
   }
-  const lock=path.join(library,'.import-bible.lock');
+  const lock=path.join(library,'.import-library.lock');
   await writeFile(lock,randomUUID(),{flag:'wx',mode:0o600});
   let temporary;
   try {

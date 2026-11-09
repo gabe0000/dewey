@@ -6,6 +6,11 @@
 /cache/
 /dewey-library/
 /dewey-cache/
+/household/
+/dewey-household/
+household.json
+household.previous.json
+.household.lock
 /backups/
 
 # Machine-local configuration and credentials.

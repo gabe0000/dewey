@@ -5,10 +5,23 @@ import {randomBytes, timingSafeEqual} from 'node:crypto';
 import {fileURLToPath} from 'node:url';
 import {collection, sourceDocument, install, rebuild, search} from './library.mjs';
 import {bookList,chapter,searchVerses} from './bible.mjs';
+import {recipeCatalog,ingredientList} from './recipes.mjs';
+import {readHousehold,writeHousehold} from './household.mjs';
+import {foodReview,matchRecipe,simulatePlans,ingredientKey} from './kitchen.mjs';
 const project = fileURLToPath(new URL('../',import.meta.url));
-export async function createApp({source=process.env.DEWEY_LIBRARY_ROOT || process.env.DEWEY_SOURCES || path.resolve(project,'../dewey-library'), index=process.env.DEWEY_INDEX || path.resolve(project,'../dewey-cache'), setup=process.env.DEWEY_SETUP === '1'}={}) {
+export async function createApp({source=process.env.DEWEY_LIBRARY_ROOT || process.env.DEWEY_SOURCES || path.resolve(project,'../dewey-library'), index=process.env.DEWEY_INDEX || path.resolve(project,'../dewey-cache'), household=process.env.DEWEY_HOUSEHOLD_ROOT,setup=process.env.DEWEY_SETUP === '1'}={}) {
+  if(household){
+    if(!path.isAbsolute(household))throw Error('Household storage must use an absolute path');
+    for(const root of [source,index])for(const [a,b] of [[root,household],[household,root]]){const rel=path.relative(a,b);if(!rel||(!rel.startsWith('..')&&!path.isAbsolute(rel)))throw Error('Household storage must be separate from originals and index');}
+  }
   let docs = await rebuild(source,index);
   const token = randomBytes(32).toString('hex');
+  const plannerToken=randomBytes(32).toString('hex');
+  if(household)await readHousehold(household);
+  const pack=id=>docs.find(d=>d.id===id)?.recipePack;
+  const lookup=(collectionId,recipeId)=>pack(collectionId)?.recipes.find(r=>r.id===recipeId);
+  const ingredientInfo=key=>docs.flatMap(d=>d.recipePack?ingredientList(d.recipePack):[]).find(i=>i.key===ingredientKey(key));
+  async function verifiedPack(id){const cached=docs.find(d=>d.id===id&&d.recipePack);if(!cached)return undefined;const fresh=await sourceDocument(source,id);if(!fresh||fresh.sha256!==cached.sha256)throw Error('Recipe source changed; restart Dewey to rebuild its index');return cached.recipePack;}
   let installing = false;
   const server = http.createServer(async (req,res) => {
     const send = (code, value, type='application/json') => {
@@ -19,7 +32,25 @@ export async function createApp({source=process.env.DEWEY_LIBRARY_ROOT || proces
       // Reject DNS rebinding. Publication is deliberately unsupported.
       if(!/^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/.test(req.headers.host || '')) return send(403,{error:'Localhost only'});
       const url = new URL(req.url,'http://localhost');
-      if(req.method === 'GET' && url.pathname === '/api/status') return send(200,{count:docs.length,setup,source,index,token:setup?token:undefined});
+      if(req.method === 'GET' && url.pathname === '/api/status') return send(200,{count:docs.length,setup,source,index,token:setup?token:undefined,plannerEnabled:Boolean(household),plannerToken:household?plannerToken:undefined});
+      if(url.pathname==='/api/household'){
+        if(req.method==='GET'){
+          const state=await readHousehold(household);return send(200,{state,enabled:Boolean(household),review:Object.fromEntries(state.inventory.map(l=>[l.id,foodReview(l)])),plan:simulatePlans(state,lookup,{checkBasics:url.searchParams.get('checkBasics')==='1'})});
+        }
+        if(req.method==='POST'){
+          const supplied=Buffer.from(req.headers['x-dewey-planner-token']||'');
+          if(!household||supplied.length!==plannerToken.length||!timingSafeEqual(supplied,Buffer.from(plannerToken)))return send(403,{error:'Planner session changed; reload before saving'});
+          if(req.headers.origin&&req.headers.origin!==`http://${req.headers.host}`)return send(403,{error:'Origin rejected'});
+          if(!req.headers['content-type']?.startsWith('application/json'))return send(415,{error:'Use a JSON request'});
+          const chunks=[];let size=0;for await(const chunk of req){size+=chunk.length;if(size>65536)return send(413,{error:'Household action is too large'});chunks.push(chunk);}
+          let body;try{body=JSON.parse(Buffer.concat(chunks).toString('utf8'));}catch{return send(400,{error:'Invalid JSON request'});}
+          if(!body||!Number.isInteger(body.revision)||typeof body.action!=='string'||!body.data||typeof body.data!=='object'||Array.isArray(body.data))return send(400,{error:'Invalid household action'});
+          const collectionId=body.data.collectionId||(body.action==='confirmCook'?(await readHousehold(household)).plans.find(p=>p.id===body.data.planId)?.collectionId:undefined);
+          if(collectionId&&!await verifiedPack(collectionId))return send(404,{error:'Recipe collection not found'});
+          const state=await writeHousehold(household,body.revision,body.action,body.data,{lookup,pack,ingredientInfo});return send(200,{revision:state.revision});
+        }
+        return send(405,{error:'Method not allowed'});
+      }
       if(req.method === 'POST' && url.pathname === '/api/install') {
         const supplied = Buffer.from(req.headers['x-dewey-token'] || '');
         if(!setup || supplied.length !== token.length || !timingSafeEqual(supplied,Buffer.from(token))) return send(403,{error:'Setup is disabled or token is invalid'});
@@ -30,7 +61,18 @@ export async function createApp({source=process.env.DEWEY_LIBRARY_ROOT || proces
         finally {installing = false;}
       }
       if(req.method !== 'GET') return send(405,{error:'Method not allowed'});
-      if(url.pathname === '/api/catalog') return send(200,{topics:[...new Set(docs.map(d=>d.topic))].sort(),documents:search(docs,url.searchParams.get('q')||'',url.searchParams.get('topic')||'').map(({text,bible,...d})=>({...d,...(bible?{kind:'bible',bookCount:bible.bookCount,verseCount:bible.verseCount}:{})}))});
+      if(url.pathname === '/api/catalog') return send(200,{topics:[...new Set(docs.map(d=>d.topic))].sort(),documents:search(docs,url.searchParams.get('q')||'',url.searchParams.get('topic')||'').map(({text,bible,recipePack,...d})=>({...d,...(bible?{kind:'bible',bookCount:bible.bookCount,verseCount:bible.verseCount}:recipePack?{kind:'recipes',recipeCount:recipePack.recipes.length,homesteadCount:recipePack.recipes.filter(r=>r.section==='Homestead').length}:{})}))});
+      const recipesRoute=url.pathname.match(/^\/api\/recipes\/([a-z0-9-]+)(?:\/(recipe|guide)\/([a-z0-9-]+))?$/);
+      if(recipesRoute){
+        const [,,kind,id]=recipesRoute,p=kind?await verifiedPack(recipesRoute[1]):pack(recipesRoute[1]);
+        if(!p)return send(404,{error:'Recipe collection not found'});
+        const state=await readHousehold(household);
+        if(!kind)return send(200,recipeCatalog(p,state,Object.fromEntries(url.searchParams)));
+        if(kind==='guide'){const guide=p.guides.find(g=>g.id===id);return guide?send(200,{...guide,references:p.references}):send(404,{error:'Guide not found'});}
+        const recipe=p.recipes.find(r=>r.id===id);const servings=url.searchParams.has('servings')?Number(url.searchParams.get('servings')):recipe?.servings;
+        if(recipe&&(!Number.isFinite(servings)||servings<=0||servings>1000000))return send(400,{error:'Invalid portions'});
+        return recipe?send(200,{recipe,match:matchRecipe(recipe,state,{servings,checkBasics:url.searchParams.get('checkBasics')==='1'}),guides:p.guides.map(({id,title})=>({id,title}))}):send(404,{error:'Recipe not found'});
+      }
       const bibleRoute=url.pathname.match(/^\/api\/bible\/([a-z0-9-]+)$/);
       if(bibleRoute){
         const doc=docs.find(d=>d.id===bibleRoute[1]&&d.bible);
@@ -49,6 +91,9 @@ export async function createApp({source=process.env.DEWEY_LIBRARY_ROOT || proces
         const id = url.pathname.slice('/api/source/'.length);
         // Read and reverify source at viewing time, not only at startup.
         const doc = await sourceDocument(source,id);
+        if(doc?.format==='recipes-v1'){
+          const p=await verifiedPack(id);return send(200,{...doc,text:undefined,kind:'recipes',recipeCount:p.recipes.length,homesteadCount:p.recipes.filter(r=>r.section==='Homestead').length});
+        }
         if(doc?.format){
           const cached=docs.find(d=>d.id===id&&d.bible);
           if(!cached||cached.sha256!==doc.sha256)throw Error('Source changed; restart Dewey to rebuild its index');
@@ -57,7 +102,7 @@ export async function createApp({source=process.env.DEWEY_LIBRARY_ROOT || proces
         }
         return doc ? send(200,doc) : send(404,{error:'Source not found'});
       }
-      const assets = {'/':['index.html','text/html; charset=utf-8'],'/app.js':['app.js','text/javascript; charset=utf-8'],'/style.css':['style.css','text/css; charset=utf-8']};
+      const assets = {'/':['index.html','text/html; charset=utf-8'],'/app.js':['app.js','text/javascript; charset=utf-8'],'/recipes.js':['recipes.js','text/javascript; charset=utf-8'],'/style.css':['style.css','text/css; charset=utf-8'],'/recipes.css':['recipes.css','text/css; charset=utf-8']};
       if(assets[url.pathname]) {const [file,type]=assets[url.pathname]; return send(200,await readFile(path.join(project,'public',file)),type);}
       return send(404,{error:'Not found'});
     } catch(e) {send(409,{error:e.message});}

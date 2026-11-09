@@ -9,6 +9,8 @@ services:
     read_only: true
     cap_drop: [ALL]
     security_opt: ["no-new-privileges:true"]
+    environment:
+      DEWEY_HOUSEHOLD_ROOT: /household
     volumes:
       - type: bind
         source: ${DEWEY_LIBRARY_ROOT:-../dewey-library}
@@ -19,6 +21,11 @@ services:
       - type: bind
         source: ${DEWEY_INDEX:-../dewey-cache}
         target: /index
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${DEWEY_HOUSEHOLD_ROOT:-../dewey-household}
+        target: /household
         bind:
           create_host_path: false
     restart: "no"
