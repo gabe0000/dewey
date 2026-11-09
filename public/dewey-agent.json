@@ -1,0 +1,13 @@
+{
+  "schema": 1,
+  "name": "Dewey",
+  "purpose": "Human-first offline library with a bounded, discoverable agent read interface",
+  "bootstrap": "/agent.md",
+  "transport": "localhost HTTP JSON and original files",
+  "capabilities": ["catalog.search", "source.read", "source.original", "bible.read", "recipes.read", "pdf.page", "pdf.search", "lessons.read"],
+  "catalog": "/api/catalog",
+  "mcp": {"implemented": false, "installed": false, "registered": false, "tested": false, "status": "Future adapter; current interface is HTTP"},
+  "aiExecution": false,
+  "mutationAuthorization": "No mutations granted by discovery; concrete operator instructions required",
+  "privateHousehold": "Excluded from agent discovery; separate human kitchen controls"
+}

@@ -4,6 +4,7 @@ const el = (tag,text) => {const n=document.createElement(tag); n.textContent=tex
 function showError(error) {
   $('status').textContent = error.message;
   if (error.offline) {
+    stopReader();stopReader=()=>{};
     sequence++;
     readerSequence++;
     $('catalog').replaceChildren();
@@ -31,20 +32,21 @@ async function catalog() {
     $('catalog').replaceChildren();
     for(const d of data.documents) {const button=el('button','');
       button.className='book';
-      button.append(el('small',d.topic),el('h2',d.title),el('span',d.kind==='bible'?`${d.translation} · ${d.bookCount} books · ${d.verseCount.toLocaleString()} verses →`:d.kind==='recipes'?`${d.recipeCount} recipes · ${d.homesteadCount} homestead meals →`:`${d.license} · verified source →`));
+      button.append(el('small',d.topic),el('h2',d.title),el('span',d.kind==='bible'?`${d.translation} · ${d.bookCount} books · ${d.verseCount.toLocaleString()} verses →`:d.kind==='pdf'?`${d.pageCount} pages · illustrated PDF →`:d.kind==='lessons'?`${d.lessonCount} beginner lessons · start here →`:d.kind==='recipes'?`${d.recipeCount} recipes · ${d.homesteadCount} homestead meals →`:`${d.license} · verified source →`));
       button.onclick=()=>{
         const nextHash = '#' + encodeURIComponent(d.id);
         if (location.hash === nextHash) return view(d.id);
         location.hash = nextHash;
       };
     $('catalog').append(button);}
-    $('status').textContent=`${data.documents.length} text${data.documents.length===1?'':'s'} on this shelf`;
+    $('status').textContent=`${data.documents.length} source${data.documents.length===1?'':'s'} on this shelf`;
   } catch(e) {if(seq===sequence)showError(e);}
 }
-let readerSequence=0;
-async function view(id,book,chapterNumber,verseNumber) {const seq=++readerSequence;try {const d=await api('/api/source/'+encodeURIComponent(id));
+let readerSequence=0,stopReader=()=>{};
+async function view(id,book,chapterNumber,verseNumber) {const seq=++readerSequence;stopReader();stopReader=()=>{};try {const d=await api('/api/source/'+encodeURIComponent(id));
     if(seq!==readerSequence)return;
-    document.body?.classList.remove('kitchen-open');$('reader').className='';
+    document.body?.classList.remove('kitchen-open','learning-open');$('reader').className='';
+    if(d.kind==='pdf'||d.kind==='lessons'){const {renderLearning}=await import('/learning.js');if(seq!==readerSequence)return;const cleanup=await renderLearning(d,{container:$('reader'),api,el,route:[book,chapterNumber],isCurrent:()=>seq===readerSequence,query:$('query').value});if(seq===readerSequence)stopReader=cleanup;else cleanup();return;}
     if(d.kind==='recipes'){const {renderRecipes}=await import('/recipes.js');if(seq!==readerSequence)return;return renderRecipes(d,{container:$('reader'),api,el,token:plannerToken,route:[book,chapterNumber],isCurrent:()=>seq===readerSequence});}
     if(d.kind==='bible')return await bibleView(d,book,chapterNumber,verseNumber,seq);
     const close=el('button','← Close source');close.onclick=()=>{location.hash='';};
@@ -110,7 +112,7 @@ async function bibleView(d,bookId,chapterNumber,verseNumber,seq){
   body.append(paging);
   if(highlighted)highlighted.scrollIntoView({block:'center'});
 }
-function navigate(){if(location.hash){try{view(...location.hash.slice(1).split('/').map(decodeURIComponent));}catch(error){showError(error);}}else{readerSequence++;document.body?.classList.remove('kitchen-open');$('reader').className='';
+function navigate(){if(location.hash){try{view(...location.hash.slice(1).split('/').map(decodeURIComponent));}catch(error){showError(error);}}else{readerSequence++;stopReader();stopReader=()=>{};document.body?.classList.remove('kitchen-open','learning-open');$('reader').className='';
     $('reader').replaceChildren(el('h2','A little library, built to last.'),el('p','Choose a text to read its original source and inspect where it came from.'));}}
 window.addEventListener('hashchange',navigate);
 $('filters').onsubmit=e=>{e.preventDefault();catalog();};

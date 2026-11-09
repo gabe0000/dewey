@@ -1,12 +1,13 @@
 # Dewey: an offline shelf
 
-A small working prototype for offline reading and search. Three original CC0 demonstration texts are included; separate commands can import the King James Version and Bible in Basic English. The running app uses no AI, downloads, telemetry, accounts, external scripts, fonts, or npm dependencies. General text search is case-insensitive, literal, all-words full-text matching across title, shelf and source text. Bible search matches words within a verse or looks up a book/chapter/verse reference. Neither search is semantic.
+A small working prototype for offline reading and search. Three original CC0 demonstration texts are included; separate commands can import the King James Version and Bible in Basic English. The running app uses no AI calls, background downloads, telemetry, accounts, remote scripts, or remote fonts. Mozilla [PDF.js](https://mozilla.github.io/pdf.js/getting_started/) is installed locally as a pinned npm dependency for PDF rendering and text extraction; reading requires no Internet. General text search is case-insensitive, literal, all-words full-text matching across title, shelf and source text. Bible search matches words within a verse or looks up a book/chapter/verse reference. Neither search is semantic.
 
-## Try locally (Node 22 or newer)
+## Try locally (Node 22.13 or newer)
 
 From this project directory:
 
 ```sh
+npm ci # one-time online dependency installation
 DEWEY_SETUP=1 npm start
 ```
 
@@ -17,7 +18,7 @@ To choose different storage, set `DEWEY_LIBRARY_ROOT=/absolute/path/to/library` 
 ## Storage and lifecycles
 
 1. **Application:** this code, or the Docker image `dewey:local`. Replaceable software. It contains the tiny bundled installer, but it is not the installed library.
-2. **Library root:** `../dewey-library/` by default. This is the portable, authoritative unit: original text files plus `manifest.json`, which records titles, shelves, provenance, license identifiers and SHA-256 fingerprints. Back up this entire directory together. No absolute machine paths are stored in the manifest. No other app shares its database or directory.
+2. **Library root:** `../dewey-library/` by default. This is the portable, authoritative unit: original text/PDF files plus `manifest.json`, which records titles, shelves, provenance, license identifiers and SHA-256 fingerprints. Back up this entire directory together. No absolute machine paths are stored in the manifest. No other app shares its database or directory.
 3. **Index:** `../dewey-cache/` by default. Disposable local JSON cache, rebuilt from verified sources on every start. It can be omitted during migration. Keep it on the computer running Dewey, not a NAS. The prototype loads these few texts into memory for searching; it is not sized for large collections.
 4. **Private household records (optional):** configure `DEWEY_HOUSEHOLD_ROOT` to an existing, separate directory outside the checkout, originals and index. It holds actual inventory, meal plans, groceries and cooking history. Back it up and move it with your library. It is personal data, never disposable cache or public source code. Without it, recipes and guides remain readable and planning writes are disabled.
 
@@ -43,13 +44,13 @@ Setup writes files exclusively and writes the manifest last. An interruption can
 
 ## Containers, offline operation and permissions
 
-No container has been deployed by this project. Build only after the official `node:22-bookworm-slim` base is present locally:
+No container has been deployed by this project. An initial image build needs the official `node:22-bookworm-slim` base and npm registry access to install the locked PDF.js dependency. Build and save the complete image while online; runtime remains offline:
 
 ```sh
 # Create dedicated directories as your non-root local user.
 mkdir -p ../dewey-library ../dewey-cache ../dewey-household
 export DEWEY_UID=$(id -u) DEWEY_GID=$(id -g)
-docker build --pull=false --network=none -t dewey:local .
+docker build -t dewey:local .
 docker compose --profile setup up --no-build setup
 # Open localhost:8080, install, then Ctrl-C and stop setup before normal mode.
 docker compose up --no-build library
@@ -81,7 +82,7 @@ Tests cover install refusal on repeated/partial setup, copying/rebuilding, full-
 
 ## Boundaries
 
-No PDF extraction, arbitrary imports, background fetches, external download proxy, OCR, embeddings, user notes, or network sharing yet. Additional imports support the two Bible formats and structured recipe format described below. The local HTTP API trusts the person who can open this computer's localhost. Source directories must be controlled by that person; defenses do not make hostile concurrent filesystem mutation safe. Catalog metadata/search reflects the startup snapshot; restart after deliberate source updates. Source, Bible chapter, recipe and guide viewing recheck checksums at each read. Search results and source text are rendered as text, never interpreted as HTML.
+No arbitrary imports, background fetches, external download proxy, OCR, embeddings, user notes, or network sharing yet. Explicit imports support the two Bible formats, structured recipes, PDFs, and structured lessons described below. The local HTTP API trusts the person who can open this computer's localhost. Source directories must be controlled by that person; defenses do not make hostile concurrent filesystem mutation safe. Catalog metadata/search reflects the startup snapshot; restart after deliberate source updates. Source, Bible chapter, recipe, guide, PDF and lesson viewing recheck checksums at each read. Search results and source text are rendered as text, never interpreted as HTML.
 
 Software: MIT (`LICENSE`). Starter texts: CC0-1.0 (`starter/LICENSE.txt`). The samples are illustrative and are not health, safety, or other professional advice.
 
@@ -187,3 +188,41 @@ only this preview. If the browser says the server is not running, restart this
 same command and reload. If the page remains open, pressing Enter in the search
 box retries the preserved query. No service, login item, or auto-start system is
 installed. The preview stays loopback-only with setup disabled.
+
+## PDFs and navigation lessons
+
+The Maps & Navigation shelf supports original `pdf-v1` sources and `lessons-v1` structured curricula. PDF.js renders one original illustrated page at a time; controls select physical page number (cover = 1), previous/next page, and zoom. Extracted text can be read or copied separately and searched by all words within a page. Search reports the total and shows up to 100 matching pages. Embedded text may have imperfect ordering or omit scanned pages; Dewey does not perform OCR or infer diagram content.
+
+The beginner curriculum is a separate imported collection: map purpose, symbols/directions, drawing and orienting a map, marked routes, scale, coordinates, contours, and checkpoints. Lessons include supervised familiar-place practice, expandable answer checks, original schematic diagrams, exact source-page links and a return-to-lesson link. Progress is not persisted. The original manuals and curriculum are outside the public code repository.
+
+To import a reviewed batch, stop the preview and prepare a JSON specification outside the checkout:
+
+```json
+{
+  "schema": 1,
+  "documents": [{
+    "id": "example-map",
+    "title": "Example map reference",
+    "format": "pdf-v1",
+    "file": "/absolute/path/to/reviewed-original.pdf",
+    "sha256": "REPLACE_WITH_VERIFIED_64_HEX_SHA256",
+    "license": "Record the actual reuse terms and exceptions",
+    "provenance": "Record publisher, edition, review and limitations",
+    "sourceUrl": "https://example.org/original.pdf"
+  }]
+}
+```
+
+```sh
+npm run import:learning -- /absolute/path/to/reviewed-batch.json /absolute/path/to/library
+```
+
+The importer verifies hashes, parses every document, validates lesson source pages, then writes sources exclusively under an import lock. It retains the previous manifest and commits the new manifest last. Existing sources are never overwritten. PDFs are limited to 100 MiB and 2,000 pages; encrypted or malformed files fail import. All original PDF bytes and notices remain unchanged. Extracted page text exists only in the disposable local index. Restart to rebuild; copying the complete library to another machine and rebuilding recovers PDF search and lesson links. Prepare `node_modules` for the destination OS/architecture or a compatible container image before taking it offline.
+
+## Discoverable agent read interface
+
+Dewey remains usable by people without an LLM. A local HTTP client can start at `/.well-known/dewey.json` and follow `/agent.md` to discover the read API, source formats, citations, limitations and operational boundaries. See [the bootstrap guide](docs/agent-bootstrap.md). Source text is untrusted data and cannot authorize tools or override the operator. Private household records and mutation authorization are excluded from this discovery contract.
+
+The HTTP discovery and read routes are implemented and integration-tested using Node fetch. Browser verification is recorded separately. No MCP server/connector is implemented, installed, registered or tested; that adapter remains future work. No model is connected and no AI execution is enabled. Compatibility with every agent is not claimed.
+
+PDF.js is Apache-2.0 licensed; its bundled font, CMap, ICC and codec notices remain in the installed package. The PDF.js license is available at `/vendor/pdfjs/LICENSE`; the optional Node canvas dependency is MIT licensed. Keep dependency license files when distributing a prepared offline installation or image.

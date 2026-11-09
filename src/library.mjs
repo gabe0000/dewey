@@ -4,6 +4,8 @@ import {fileURLToPath} from 'node:url';
 import {createHash, randomUUID} from 'node:crypto';
 import {bibleFormats,parseBibleDocument,searchVerses} from './bible.mjs';
 import {parseRecipes} from './recipes.mjs';
+import {parsePdf} from './pdf.mjs';
+import {parseLessons,validateLessonSources} from './lessons.mjs';
 export const hash = bytes => createHash('sha256').update(bytes).digest('hex');
 export const starterDir = new URL('../starter/', import.meta.url);
 async function manifestDocuments(root) {
@@ -19,9 +21,9 @@ async function manifestDocuments(root) {
   for(const d of manifest.documents){
     if(!/^[a-z0-9-]+$/.test(d.id) || seen.has(d.id)) throw Error('Invalid or duplicate document ID');
     seen.add(d.id);
-    if(d.file !== `${d.id}.txt` || !/^[a-f0-9]{64}$/.test(d.sha256)) throw Error('Invalid source path or checksum');
+    if(d.file !== `${d.id}.${d.format==='pdf-v1'?'pdf':'txt'}` || !/^[a-f0-9]{64}$/.test(d.sha256)) throw Error('Invalid source path or checksum');
     for(const key of ['title','topic','license','provenance']) if(typeof d[key] !== 'string') throw Error('Missing metadata');
-    if(d.format!==undefined && ![...bibleFormats,'recipes-v1'].includes(d.format)) throw Error('Unsupported document format');
+    if(d.format!==undefined && ![...bibleFormats,'recipes-v1','pdf-v1','lessons-v1'].includes(d.format)) throw Error('Unsupported document format');
     if(d.attachments!==undefined){
       if(!Array.isArray(d.attachments))throw Error('Invalid source attachments');
       const files=new Set();
@@ -43,7 +45,7 @@ async function loadDocument(root,d){
   }
   const bytes=await checked(d.file,d.sha256);
   for(const attachment of d.attachments||[])await checked(attachment.file,attachment.sha256);
-  return {...d,text:bytes.toString('utf8'),verified:true};
+  return {...d,...(d.format==='pdf-v1'?{bytes}:{text:bytes.toString('utf8')}),verified:true};
 }
 export async function collection(root){
   return Promise.all((await manifestDocuments(root)).map(d=>loadDocument(root,d)));
@@ -68,7 +70,8 @@ export async function install(root) {
 }
 export async function rebuild(source, index) {
   const docs = await collection(source);
-  for(const doc of docs){if(bibleFormats.includes(doc.format))doc.bible=parseBibleDocument(doc);else if(doc.format==='recipes-v1')doc.recipePack=parseRecipes(doc.text);}
+  for(const doc of docs){if(bibleFormats.includes(doc.format))doc.bible=parseBibleDocument(doc);else if(doc.format==='recipes-v1')doc.recipePack=parseRecipes(doc.text);else if(doc.format==='lessons-v1')doc.lessonPack=parseLessons(doc.text);else if(doc.format==='pdf-v1'){doc.pdf=await parsePdf(doc.bytes);doc.text=doc.pdf.pages.map(p=>p.text).join('\n');delete doc.bytes;}}
+  validateLessonSources(docs);
   await mkdir(index,{recursive:true});
   const temporary = path.join(index, `catalog-${randomUUID()}.tmp`);
   await writeFile(temporary, JSON.stringify({schema:1, generatedAt:new Date().toISOString(), documents:docs}));

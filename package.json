@@ -10,10 +10,14 @@
     "preview": "node scripts/start-preview.mjs",
     "import:kjv": "node scripts/import-kjv.mjs",
     "import:bible": "node scripts/import-bible.mjs",
-    "import:recipes": "node scripts/import-recipes.mjs"
+    "import:recipes": "node scripts/import-recipes.mjs",
+    "import:learning": "node scripts/import-learning.mjs"
   },
   "engines": {
-    "node": ">=22"
+    "node": ">=22.13.0"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "pdfjs-dist": "6.5.438"
+  }
 }

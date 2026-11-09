@@ -34,7 +34,7 @@ test('offline UI clears stale content, preserves query, and retries successfully
   online = true;
   await nodes.query.oninput();
   assert.equal(nodes.catalog.children.length,1);
-  assert.match(nodes.status.textContent,/1 text/);
+  assert.match(nodes.status.textContent,/1 source/);
   assert.equal(nodes.query.value,'checksum');
   await nodes.catalog.children[0].onclick();
   assert.equal(context.location.hash, '#test');

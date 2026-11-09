@@ -7,6 +7,7 @@ import {collection, sourceDocument, install, rebuild, search} from './library.mj
 import {bookList,chapter,searchVerses} from './bible.mjs';
 import {recipeCatalog,ingredientList} from './recipes.mjs';
 import {readHousehold,writeHousehold} from './household.mjs';
+import {findPages} from './pdf.mjs';
 import {foodReview,matchRecipe,simulatePlans,ingredientKey} from './kitchen.mjs';
 const project = fileURLToPath(new URL('../',import.meta.url));
 export async function createApp({source=process.env.DEWEY_LIBRARY_ROOT || process.env.DEWEY_SOURCES || path.resolve(project,'../dewey-library'), index=process.env.DEWEY_INDEX || path.resolve(project,'../dewey-cache'), household=process.env.DEWEY_HOUSEHOLD_ROOT,setup=process.env.DEWEY_SETUP === '1'}={}) {
@@ -25,7 +26,7 @@ export async function createApp({source=process.env.DEWEY_LIBRARY_ROOT || proces
   let installing = false;
   const server = http.createServer(async (req,res) => {
     const send = (code, value, type='application/json') => {
-      res.writeHead(code,{'Content-Type':type,'Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Content-Security-Policy':"default-src 'self'; script-src 'self'; style-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'none'",'Referrer-Policy':'no-referrer'});
+      res.writeHead(code,{'Content-Type':type,'Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Content-Security-Policy':"default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self'; style-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'none'",'Referrer-Policy':'no-referrer'});
       res.end(type === 'application/json' ? JSON.stringify(value) : value);
     };
     try {
@@ -61,7 +62,17 @@ export async function createApp({source=process.env.DEWEY_LIBRARY_ROOT || proces
         finally {installing = false;}
       }
       if(req.method !== 'GET') return send(405,{error:'Method not allowed'});
-      if(url.pathname === '/api/catalog') return send(200,{topics:[...new Set(docs.map(d=>d.topic))].sort(),documents:search(docs,url.searchParams.get('q')||'',url.searchParams.get('topic')||'').map(({text,bible,recipePack,...d})=>({...d,...(bible?{kind:'bible',bookCount:bible.bookCount,verseCount:bible.verseCount}:recipePack?{kind:'recipes',recipeCount:recipePack.recipes.length,homesteadCount:recipePack.recipes.filter(r=>r.section==='Homestead').length}:{})}))});
+      if(url.pathname === '/api/catalog') return send(200,{topics:[...new Set(docs.map(d=>d.topic))].sort(),documents:search(docs,url.searchParams.get('q')||'',url.searchParams.get('topic')||'').map(({text,bytes,pdf,lessonPack,bible,recipePack,...d})=>({...d,...(pdf?{kind:'pdf',pageCount:pdf.pageCount}:lessonPack?{kind:'lessons',lessonCount:lessonPack.lessons.length}:bible?{kind:'bible',bookCount:bible.bookCount,verseCount:bible.verseCount}:recipePack?{kind:'recipes',recipeCount:recipePack.recipes.length,homesteadCount:recipePack.recipes.filter(r=>r.section==='Homestead').length}:{})}))});
+      const learningRoute=url.pathname.match(/^\/api\/(pdf|lessons)\/([a-z0-9-]+)$/);
+      if(learningRoute){
+        const [,kind,id]=learningRoute,cached=docs.find(d=>d.id===id&&(kind==='pdf'?d.pdf:d.lessonPack));
+        if(!cached)return send(404,{error:'Learning source not found'});
+        const fresh=await sourceDocument(source,id);if(!fresh||fresh.sha256!==cached.sha256)throw Error('Source changed; restart Dewey to rebuild its index');
+        if(kind==='lessons')return send(200,cached.lessonPack);
+        if(url.searchParams.has('q'))return send(200,findPages(cached.pdf,url.searchParams.get('q')));
+        const n=Number(url.searchParams.get('page')||1),page=cached.pdf.pages.find(p=>p.number===n);
+        return page?send(200,{...page,pageCount:cached.pdf.pageCount,textQuality:cached.pdf.textQuality}):send(404,{error:'PDF page not found'});
+      }
       const recipesRoute=url.pathname.match(/^\/api\/recipes\/([a-z0-9-]+)(?:\/(recipe|guide)\/([a-z0-9-]+))?$/);
       if(recipesRoute){
         const [,,kind,id]=recipesRoute,p=kind?await verifiedPack(recipesRoute[1]):pack(recipesRoute[1]);
@@ -85,12 +96,17 @@ export async function createApp({source=process.env.DEWEY_LIBRARY_ROOT || proces
       }
       if(url.pathname.startsWith('/api/original/')){
         const doc=await sourceDocument(source,url.pathname.slice('/api/original/'.length));
-        return doc?send(200,doc.text,'text/plain; charset=utf-8'):send(404,{error:'Source not found'});
+        return doc?send(200,doc.bytes||doc.text,doc.format==='pdf-v1'?'application/pdf':'text/plain; charset=utf-8'):send(404,{error:'Source not found'});
       }
       if(url.pathname.startsWith('/api/source/')) {
         const id = url.pathname.slice('/api/source/'.length);
         // Read and reverify source at viewing time, not only at startup.
         const doc = await sourceDocument(source,id);
+        if(doc?.format==='pdf-v1'||doc?.format==='lessons-v1'){
+          const cached=docs.find(d=>d.id===id);if(!cached||cached.sha256!==doc.sha256)throw Error('Source changed; restart Dewey to rebuild its index');
+          const {bytes,text,...metadata}=doc;
+          return send(200,{...metadata,...(cached.pdf?{kind:'pdf',pageCount:cached.pdf.pageCount,textQuality:cached.pdf.textQuality}:{kind:'lessons',lessonCount:cached.lessonPack.lessons.length})});
+        }
         if(doc?.format==='recipes-v1'){
           const p=await verifiedPack(id);return send(200,{...doc,text:undefined,kind:'recipes',recipeCount:p.recipes.length,homesteadCount:p.recipes.filter(r=>r.section==='Homestead').length});
         }
@@ -102,7 +118,11 @@ export async function createApp({source=process.env.DEWEY_LIBRARY_ROOT || proces
         }
         return doc ? send(200,doc) : send(404,{error:'Source not found'});
       }
-      const assets = {'/':['index.html','text/html; charset=utf-8'],'/app.js':['app.js','text/javascript; charset=utf-8'],'/recipes.js':['recipes.js','text/javascript; charset=utf-8'],'/style.css':['style.css','text/css; charset=utf-8'],'/recipes.css':['recipes.css','text/css; charset=utf-8']};
+      if(url.pathname==='/vendor/pdfjs/LICENSE')return send(200,await readFile(path.join(project,'node_modules/pdfjs-dist/LICENSE')),'text/plain; charset=utf-8');
+      const vendor=url.pathname.match(/^\/vendor\/pdfjs\/(build\/(?:pdf|pdf.worker)\.mjs|(?:cmaps|standard_fonts|wasm|iccs)\/[a-zA-Z0-9_.-]+)$/);
+      if(vendor){const name=vendor[1];try{return send(200,await readFile(path.join(project,'node_modules/pdfjs-dist',name)),name.endsWith('.mjs')?'text/javascript':name.endsWith('.wasm')?'application/wasm':'application/octet-stream');}catch(e){if(e.code==='ENOENT')return send(404,{error:'PDF asset not found'});throw e;}}
+      if(url.pathname==='/agent.md')return send(200,await readFile(path.join(project,'docs/agent-bootstrap.md')),'text/plain; charset=utf-8');
+      const assets = {'/.well-known/dewey.json':['dewey-agent.json','application/json; charset=utf-8'],'/learning.js':['learning.js','text/javascript; charset=utf-8'],'/learning.css':['learning.css','text/css; charset=utf-8'],'/':['index.html','text/html; charset=utf-8'],'/app.js':['app.js','text/javascript; charset=utf-8'],'/recipes.js':['recipes.js','text/javascript; charset=utf-8'],'/style.css':['style.css','text/css; charset=utf-8'],'/recipes.css':['recipes.css','text/css; charset=utf-8']};
       if(assets[url.pathname]) {const [file,type]=assets[url.pathname]; return send(200,await readFile(path.join(project,'public',file)),type);}
       return send(404,{error:'Not found'});
     } catch(e) {send(409,{error:e.message});}
