@@ -20,7 +20,7 @@ export async function importLearning(specFile,library){
     const parsed=format==='pdf-v1'?{pdf:await parsePdf(bytes)}:{lessonPack:parseLessons(bytes.toString('utf8'))};
     pending.push({metadata:{id,title,format,file:id+(format==='pdf-v1'?'.pdf':'.txt'),sha256,license,provenance,...(sourceUrl?{sourceUrl}:{}),topic:'Maps & Navigation',importedAt:new Date().toISOString()},bytes,...parsed});
   }
-  const checkedExisting=[];for(const d of existing)checkedExisting.push({...d,...(d.format==='pdf-v1'?{pdf:await parsePdf(d.bytes)}:{})});
+  const checkedExisting=[];for(const d of existing)checkedExisting.push({...d,...(d.format==='pdf-v1'?{pdf:await parsePdf(d.bytes)}:d.format==='lessons-v1'?{lessonPack:parseLessons(d.text)}:{})});
   validateLessonSources([...checkedExisting,...pending.map(p=>({...p.metadata,pdf:p.pdf,lessonPack:p.lessonPack}))]);
   const lock=path.join(library,'.import-library.lock');await writeFile(lock,randomUUID(),{flag:'wx',mode:0o600});let temporary;
   try{

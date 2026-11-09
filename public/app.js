@@ -33,7 +33,7 @@ async function catalog() {
     $('catalog').replaceChildren();
     for(const d of data.documents) {const button=el('button','');
       button.className='book';
-      button.append(el('small',d.topic),el('h2',d.title),el('span',d.kind==='bible'?`${d.translation} · ${d.bookCount} books · ${d.verseCount.toLocaleString()} verses →`:d.kind==='pdf'?`${d.pageCount} pages · illustrated PDF →`:d.kind==='lessons'?`${d.lessonCount} beginner lessons · start here →`:d.kind==='recipes'?`${d.recipeCount} recipes · ${d.homesteadCount} homestead meals →`:`${d.license} · verified source →`));
+      button.append(el('small',d.topic),el('h2',d.title),el('span',d.kind==='bible'?`${d.translation} · ${d.bookCount} books · ${d.verseCount.toLocaleString()} verses →`:d.kind==='pdf'?`${d.pageCount} pages · illustrated PDF →`:d.kind==='lessons'?`${d.lessonCount} lessons · start here →`:d.kind==='recipes'?`${d.recipeCount} recipes · ${d.homesteadCount} homestead meals →`:`${d.license} · verified source →`));
       button.onclick=()=>{
         const nextHash = '#' + encodeURIComponent(d.id);
         if (location.hash === nextHash) return view(d.id);
