@@ -7,7 +7,9 @@
     "start": "node src/server.mjs",
     "test": "node --test tests/*.test.mjs",
     "verify": "node scripts/verify.mjs",
-    "preview": "node scripts/start-preview.mjs"
+    "preview": "node scripts/start-preview.mjs",
+    "import:kjv": "node scripts/import-kjv.mjs",
+    "import:bible": "node scripts/import-bible.mjs"
   },
   "engines": {
     "node": ">=22"

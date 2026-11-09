@@ -3,7 +3,8 @@ import path from 'node:path';
 import {readFile} from 'node:fs/promises';
 import {randomBytes, timingSafeEqual} from 'node:crypto';
 import {fileURLToPath} from 'node:url';
-import {collection, install, rebuild, search} from './library.mjs';
+import {collection, sourceDocument, install, rebuild, search} from './library.mjs';
+import {bookList,chapter,searchVerses} from './bible.mjs';
 const project = fileURLToPath(new URL('../',import.meta.url));
 export async function createApp({source=process.env.DEWEY_LIBRARY_ROOT || process.env.DEWEY_SOURCES || path.resolve(project,'../dewey-library'), index=process.env.DEWEY_INDEX || path.resolve(project,'../dewey-cache'), setup=process.env.DEWEY_SETUP === '1'}={}) {
   let docs = await rebuild(source,index);
@@ -29,12 +30,31 @@ export async function createApp({source=process.env.DEWEY_LIBRARY_ROOT || proces
         finally {installing = false;}
       }
       if(req.method !== 'GET') return send(405,{error:'Method not allowed'});
-      if(url.pathname === '/api/catalog') return send(200,{topics:[...new Set(docs.map(d=>d.topic))].sort(),documents:search(docs,url.searchParams.get('q')||'',url.searchParams.get('topic')||'').map(({text,...d})=>d)});
+      if(url.pathname === '/api/catalog') return send(200,{topics:[...new Set(docs.map(d=>d.topic))].sort(),documents:search(docs,url.searchParams.get('q')||'',url.searchParams.get('topic')||'').map(({text,bible,...d})=>({...d,...(bible?{kind:'bible',bookCount:bible.bookCount,verseCount:bible.verseCount}:{})}))});
+      const bibleRoute=url.pathname.match(/^\/api\/bible\/([a-z0-9-]+)$/);
+      if(bibleRoute){
+        const doc=docs.find(d=>d.id===bibleRoute[1]&&d.bible);
+        if(!doc)return send(404,{error:'Bible not found'});
+        if(url.searchParams.has('q'))return send(200,{...searchVerses(doc.bible,url.searchParams.get('q')),translation:doc.translation,indexVerified:true});
+        const fresh=await sourceDocument(source,doc.id);
+        if(!fresh||fresh.sha256!==doc.sha256)throw Error('Source changed; restart Dewey to rebuild its index');
+        try{return send(200,{...chapter(doc.bible,url.searchParams.get('book')||'genesis',url.searchParams.get('chapter')||1),translation:doc.translation,verified:true});}
+        catch(error){return send(404,{error:error.message});}
+      }
+      if(url.pathname.startsWith('/api/original/')){
+        const doc=await sourceDocument(source,url.pathname.slice('/api/original/'.length));
+        return doc?send(200,doc.text,'text/plain; charset=utf-8'):send(404,{error:'Source not found'});
+      }
       if(url.pathname.startsWith('/api/source/')) {
         const id = url.pathname.slice('/api/source/'.length);
         // Read and reverify source at viewing time, not only at startup.
-        const fresh = await collection(source);
-        const doc = fresh.find(d=>d.id === id);
+        const doc = await sourceDocument(source,id);
+        if(doc?.format){
+          const cached=docs.find(d=>d.id===id&&d.bible);
+          if(!cached||cached.sha256!==doc.sha256)throw Error('Source changed; restart Dewey to rebuild its index');
+          const {text,...metadata}=doc;
+          return send(200,{...metadata,kind:'bible',books:bookList(cached.bible),bookCount:cached.bible.bookCount,verseCount:cached.bible.verseCount});
+        }
         return doc ? send(200,doc) : send(404,{error:'Source not found'});
       }
       const assets = {'/':['index.html','text/html; charset=utf-8'],'/app.js':['app.js','text/javascript; charset=utf-8'],'/style.css':['style.css','text/css; charset=utf-8']};

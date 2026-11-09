@@ -1,6 +1,6 @@
 # Dewey: an offline shelf
 
-A small working prototype, not an authoritative reference library. Three original CC0 demonstration texts are included. No AI, downloads, telemetry, accounts, external scripts, fonts, or npm dependencies. Search is case-insensitive, literal, all-words full-text matching across title, shelf and source text. It is not semantic search or a large-scale search engine.
+A small working prototype for offline reading and search. Three original CC0 demonstration texts are included; separate commands can import the King James Version and Bible in Basic English. The running app uses no AI, downloads, telemetry, accounts, external scripts, fonts, or npm dependencies. General text search is case-insensitive, literal, all-words full-text matching across title, shelf and source text. Bible search matches words within a verse or looks up a book/chapter/verse reference. Neither search is semantic.
 
 ## Try locally (Node 22 or newer)
 
@@ -80,7 +80,7 @@ Tests cover install refusal on repeated/partial setup, copying/rebuilding, full-
 
 ## Boundaries
 
-No PDF extraction, arbitrary imports, background fetches, external download proxy, OCR, embeddings, user notes, or network sharing yet. The local HTTP API trusts the person who can open this computer's localhost. Source directories must be controlled by that person; defenses do not make hostile concurrent filesystem mutation safe. Catalog metadata/search reflects the startup snapshot; restart after deliberate source updates. Source viewing rechecks checksums at each read. Search results and source text are rendered as text, never interpreted as HTML.
+No PDF extraction, arbitrary imports, background fetches, external download proxy, OCR, embeddings, user notes, or network sharing yet. Additional imports are limited to the two Bible formats described below. The local HTTP API trusts the person who can open this computer's localhost. Source directories must be controlled by that person; defenses do not make hostile concurrent filesystem mutation safe. Catalog metadata/search reflects the startup snapshot; restart after deliberate source updates. Source and Bible chapter viewing recheck checksums at each read. Search results and source text are rendered as text, never interpreted as HTML.
 
 Software: MIT (`LICENSE`). Starter texts: CC0-1.0 (`starter/LICENSE.txt`). The samples are illustrative and are not health, safety, or other professional advice.
 
@@ -97,6 +97,52 @@ scanner: review the staged files with `git diff --cached` before each public
 commit. Do not add private documents to `starter/`; that directory is published
 with the code. Use a GitHub-provided noreply email for commits if you want to
 keep your personal email out of public history.
+
+## Bible collections
+
+Download the UTF-8 plain text of [Project Gutenberg eBook #10](https://www.gutenberg.org/ebooks/10) outside the checkout. Then stop the preview and import it into your existing verified library:
+
+```sh
+npm run import:kjv -- /absolute/path/to/downloaded-bible.txt /absolute/path/to/library
+```
+
+The importer validates 66 books and 31,102 sequentially numbered verses, copies
+the entire original file without changing its bytes, preserves a copy of the
+previous manifest, and updates the manifest last. It refuses an existing KJV,
+symbolic inputs, or an invalid download. A failed write may leave a new source
+or manifest backup for inspection; it never overwrites existing originals.
+The bundled samples remain installed. Restart the preview to rebuild its local
+index and open **King James Version** on the **Bibles** shelf.
+
+Choose a book/chapter, or search for `John 3:16`, `Psalm 23`, a verse range such
+as `1 Corinthians 13:4-7`, or words to find within the same verse. Search shows
+at most 100 matching verses and reports the total. The source record opens the
+unaltered original, including its Gutenberg license. Scripture display joins
+wrapped lines; it does not modify the stored original. The imported text and
+derived index remain outside the code repository. The complete Bible is not
+bundled with this software; tests use synthetic text.
+
+For simpler language, [Bible in Basic English at eBible.org](https://www.ebible.org/find/details.php?id=engBBE)
+is listed by its publisher as public domain in the United States. Download its
+**BibleWorks import (VPL) + SQL** ZIP outside the checkout and extract the
+`engBBE_vpl.txt` member. Keep the ZIP as well, since it contains publisher rights
+information. Then stop the preview and run:
+
+```sh
+npm run import:bible -- bbe /absolute/path/to/engBBE_vpl.txt /absolute/path/to/library /absolute/path/to/engBBE_vpl.zip
+```
+
+BBE import validates its 66 books and 31,102 numbered verses and preserves both
+the extracted original text and original ZIP, with checksums in the manifest.
+KJV and BBE can be installed together and remain separate catalog entries.
+Select a translation, then use the same book/chapter and verse search controls.
+The Bible texts, ZIPs, and private collection manifests are never included in
+this code repository. Tests contain synthetic text only.
+
+Other translations need their own supported import format and an authorized
+source. Dewey has no online Bible API or background download feature. This
+prototype holds its parsed collection in memory; large collections and
+additional translation formats are separate work.
 
 ## Reliable preview of an existing library
 

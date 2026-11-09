@@ -2,9 +2,10 @@ import {readFile, readdir, mkdir, writeFile, rename, lstat} from 'node:fs/promis
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {createHash, randomUUID} from 'node:crypto';
+import {bibleFormats,parseBibleDocument,searchVerses} from './bible.mjs';
 export const hash = bytes => createHash('sha256').update(bytes).digest('hex');
 export const starterDir = new URL('../starter/', import.meta.url);
-export async function collection(root) {
+async function manifestDocuments(root) {
   let manifest;
   for (const target of [root, path.join(root, 'manifest.json')]) {
     try { if ((await lstat(target)).isSymbolicLink()) throw Error('Symbolic source root or manifest is not allowed'); }
@@ -14,17 +15,41 @@ export async function collection(root) {
   catch(e) { if(e.code === 'ENOENT') return []; throw e; }
   if(manifest.schema !== 1 || !Array.isArray(manifest.documents)) throw Error('Invalid manifest');
   const seen = new Set();
-  return Promise.all(manifest.documents.map(async d => {
+  for(const d of manifest.documents){
     if(!/^[a-z0-9-]+$/.test(d.id) || seen.has(d.id)) throw Error('Invalid or duplicate document ID');
     seen.add(d.id);
     if(d.file !== `${d.id}.txt` || !/^[a-f0-9]{64}$/.test(d.sha256)) throw Error('Invalid source path or checksum');
     for(const key of ['title','topic','license','provenance']) if(typeof d[key] !== 'string') throw Error('Missing metadata');
-    const file = path.join(root, d.file);
-    if(!(await lstat(file)).isFile()) throw Error('Source must be a regular file');
-    const bytes = await readFile(file);
-    if(hash(bytes) !== d.sha256) throw Error(`Checksum mismatch: ${d.id}`);
-    return {...d, text: bytes.toString('utf8'), verified: true};
-  }));
+    if(d.format!==undefined && !bibleFormats.includes(d.format)) throw Error('Unsupported document format');
+    if(d.attachments!==undefined){
+      if(!Array.isArray(d.attachments))throw Error('Invalid source attachments');
+      const files=new Set();
+      for(const attachment of d.attachments){
+        if(typeof attachment.file!=='string'||!attachment.file.startsWith(d.id+'-')||!/^[a-z0-9][a-z0-9.-]*$/.test(attachment.file)||attachment.file.includes('..')||!/^([a-f0-9]{64})$/.test(attachment.sha256)||files.has(attachment.file))throw Error('Invalid attachment path or checksum');
+        files.add(attachment.file);
+      }
+    }
+  }
+  return manifest.documents;
+}
+async function loadDocument(root,d){
+  async function checked(file,digest){
+    const full=path.join(root,file);
+    if(!(await lstat(full)).isFile())throw Error('Source must be a regular file');
+    const bytes=await readFile(full);
+    if(hash(bytes)!==digest)throw Error(`Checksum mismatch: ${d.id}`);
+    return bytes;
+  }
+  const bytes=await checked(d.file,d.sha256);
+  for(const attachment of d.attachments||[])await checked(attachment.file,attachment.sha256);
+  return {...d,text:bytes.toString('utf8'),verified:true};
+}
+export async function collection(root){
+  return Promise.all((await manifestDocuments(root)).map(d=>loadDocument(root,d)));
+}
+export async function sourceDocument(root,id){
+  const doc=(await manifestDocuments(root)).find(d=>d.id===id);
+  return doc?loadDocument(root,doc):undefined;
 }
 export async function install(root) {
   try { if ((await lstat(root)).isSymbolicLink()) throw Error('Symbolic source root is not allowed'); }
@@ -42,6 +67,7 @@ export async function install(root) {
 }
 export async function rebuild(source, index) {
   const docs = await collection(source);
+  for(const doc of docs) if(doc.format) doc.bible=parseBibleDocument(doc);
   await mkdir(index,{recursive:true});
   const temporary = path.join(index, `catalog-${randomUUID()}.tmp`);
   await writeFile(temporary, JSON.stringify({schema:1, generatedAt:new Date().toISOString(), documents:docs}));
@@ -50,5 +76,6 @@ export async function rebuild(source, index) {
 }
 export function search(docs, query='', topic='') {
   const words = query.toLowerCase().trim().split(/\s+/).filter(Boolean);
-  return docs.filter(d => (!topic || d.topic === topic) && words.every(w => `${d.title} ${d.topic} ${d.text}`.toLowerCase().includes(w)));
+  const reference=/^[1-3]?\s*[a-z][a-z\s-]*?\s*\d+(?::\d+(?:-\d+)?)?$/i.test(query.trim());
+  return docs.filter(d => (!topic || d.topic === topic) && (d.bible&&reference?searchVerses(d.bible,query,1).total>0:words.every(w => `${d.title} ${d.topic} ${d.text}`.toLowerCase().includes(w))));
 }
