@@ -35,7 +35,7 @@ export function foodReview(lot,now=Date.now()){
   if(lot.preparedAt&&Date.parse(lot.preparedAt)>now)flags.push('Preparation date is after this meal');
   return flags;
 }
-function needs(recipe,servings,checkBasics){return recipe.ingredients.filter(i=>!i.optional&&(checkBasics||!i.pantryBasic)).map(i=>({...i,quantity:i.quantity*servings/recipe.servings}));}
+function needs(recipe,servings,checkBasics){return recipe.ingredients.map((i,ingredientIndex)=>({...i,ingredientIndex})).filter(i=>!i.optional&&(checkBasics||!i.pantryBasic)).map(i=>({...i,quantity:i.quantity*servings/recipe.servings}));}
 export function matchRecipe(recipe,state,{servings=recipe.servings,checkBasics=false,now=Date.now(),reserve=false}={}){
   const stock=reserve?state.inventory:structuredClone(state.inventory);
   const avoidance=state.avoidances||{allergens:[],ingredients:[]};

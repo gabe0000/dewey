@@ -94,6 +94,10 @@ test('recipe schemas validate guide links, ingredient units and meal-chain outpu
 test('unmeasured source ingredients prevent a complete stock match and are never guessed for shopping',()=>{
   const r={...beans,unmeasuredIngredients:['Some flour; amount not stated']};const match=matchRecipe(r,stocked(),{now});assert.equal(match.ready,false);assert.equal(match.unmeasured.length,1);assert.equal(match.total,2);assert.equal(match.missing.length,0);
 });
+test('repeated ingredients keep separate shortfalls for their corresponding instruction components',()=>{
+  const r={...beans,ingredients:[ingredient('rice',1,'cup'),ingredient('rice',.5,'cup')]};const s=stocked();s.inventory.find(i=>i.key==='rice').quantity=1.25;
+  const result=matchRecipe(r,s,{now});assert.equal(result.ingredients[0].ingredientIndex,0);assert.equal(result.ingredients[0].missing,0);assert.equal(result.ingredients[1].ingredientIndex,1);assert.equal(result.ingredients[1].missing,.25);
+});
 async function fixture(t){const root=await mkdtemp(path.join(os.tmpdir(),'dewey-kitchen-'));t.after(()=>rm(root,{recursive:true,force:true}));const household=path.join(root,'household');await mkdir(household);return {root,household,source:path.join(root,'library'),index:path.join(root,'index')};}
 test('private household writes persist, reject stale revisions and preserve a previous record',async t=>{
   const f=await fixture(t);const state=await writeHousehold(f.household,0,'addInventory',{...ingredient('rice',2,'cup'),location:'Pantry'},context);
