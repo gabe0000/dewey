@@ -3,7 +3,7 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {createHash, randomUUID} from 'node:crypto';
 import {bibleFormats,parseBibleDocument,searchVerses} from './bible.mjs';
-import {parseRecipes} from './recipes.mjs';
+import {parseRecipes,searchRecipes,searchGuides} from './recipes.mjs';
 import {parsePdf} from './pdf.mjs';
 import {parseLessons,validateLessonSources} from './lessons.mjs';
 export const hash = bytes => createHash('sha256').update(bytes).digest('hex');
@@ -81,5 +81,5 @@ export async function rebuild(source, index) {
 export function search(docs, query='', topic='') {
   const words = query.toLowerCase().trim().split(/\s+/).filter(Boolean);
   const reference=/^[1-3]?\s*[a-z][a-z\s-]*?\s*\d+(?::\d+(?:-\d+)?)?$/i.test(query.trim());
-  return docs.filter(d => (!topic || d.topic === topic) && (d.bible&&reference?searchVerses(d.bible,query,1).total>0:words.every(w => `${d.title} ${d.topic} ${d.text}`.toLowerCase().includes(w))));
+  return docs.filter(d => (!topic || d.topic === topic) && (d.recipePack?searchRecipes(d.recipePack,query).length>0||searchGuides(d.recipePack,query).length>0||words.every(w=>`${d.title} ${d.topic}`.toLowerCase().includes(w)):d.bible&&reference?searchVerses(d.bible,query,1).total>0:words.every(w => `${d.title} ${d.topic} ${d.text}`.toLowerCase().includes(w))));
 }

@@ -46,10 +46,22 @@ export function ingredientList(pack){
   for(const r of pack.recipes)for(const i of [...r.ingredients,...r.produces])if(!items.has(i.key))items.set(i.key,{key:i.key,label:i.key.split('-').map(w=>w[0].toUpperCase()+w.slice(1)).join(' '),unit:i.unit,cooked:Boolean(i.cooked),requiresCold:Boolean(i.requiresCold)});
   return [...items.values()].sort((a,b)=>a.label.localeCompare(b.label));
 }
+const matchesWords=(text,query)=>query.toLowerCase().trim().split(/\s+/).filter(Boolean).every(word=>text.toLowerCase().includes(word));
+const recipeText=r=>[r.title,r.summary,r.section,r.category,...r.tags,...r.equipment,...r.ingredients.map(i=>i.label),...(r.unmeasuredIngredients||[]),...r.steps.map(s=>s.text),r.originalText||''].join(' ');
+export function searchRecipes(pack,query=''){
+  return pack.recipes.filter(r=>matchesWords(recipeText(r),query));
+}
+function searchExcerpt(recipe,query=''){
+  if(!query.trim())return undefined;
+  const text=recipeText(recipe).replace(/\s+/g,' '),word=query.toLowerCase().trim().split(/\s+/)[0],at=text.toLowerCase().indexOf(word),start=Math.max(0,at-55),end=Math.min(text.length,at+word.length+105);
+  return (start?'…':'')+text.slice(start,end)+(end<text.length?'…':'');
+}
+export function searchGuides(pack,query=''){
+  return query.trim()?pack.guides.filter(g=>matchesWords([g.title,g.summary,...g.sections.flatMap(s=>[s.title,s.text])].join(' '),query)):[];
+}
 export function recipeCatalog(pack,state,params={}){
-  const query=(params.q||'').toLowerCase().trim().split(/\s+/).filter(Boolean);
-  const filtered=pack.recipes.filter(r=>(!params.section||r.section===params.section)&&(!params.difficulty||r.difficulty===params.difficulty)&&(!params.category||r.category===params.category)&&query.every(w=>`${r.title} ${r.summary} ${r.category} ${r.tags.join(' ')} ${r.ingredients.map(i=>i.label).join(' ')}`.toLowerCase().includes(w)));
-  const recipes=filtered.map(r=>({id:r.id,title:r.title,summary:r.summary,section:r.section,category:r.category,difficulty:r.difficulty,servings:r.servings,servingUnit:r.servingUnit||'portions',timeUnknown:Boolean(r.timeUnknown),totalMinutes:r.prepMinutes+r.cookMinutes+r.restMinutes,tags:r.tags,allergens:r.allergens,match:matchRecipe(r,state,{checkBasics:params.checkBasics==='1'})}));
+  const filtered=searchRecipes(pack,params.q||'').filter(r=>(!params.section||r.section===params.section)&&(!params.difficulty||r.difficulty===params.difficulty)&&(!params.category||r.category===params.category));
+  const recipes=filtered.map(r=>({id:r.id,title:r.title,summary:r.summary,section:r.section,category:r.category,difficulty:r.difficulty,servings:r.servings,servingUnit:r.servingUnit||'portions',timeUnknown:Boolean(r.timeUnknown),totalMinutes:r.prepMinutes+r.cookMinutes+r.restMinutes,tags:r.tags,allergens:r.allergens,searchExcerpt:searchExcerpt(r,params.q),match:matchRecipe(r,state,{checkBasics:params.checkBasics==='1'})}));
   if(params.stock==='1')recipes.sort((a,b)=>a.match.conflicts.length-b.match.conflicts.length||(a.match.missing.length+a.match.unmeasured.length)-(b.match.missing.length+b.match.unmeasured.length)||b.match.covered-a.match.covered);
-  return {title:pack.title,total:recipes.length,recipeCount:pack.recipes.length,homesteadCount:pack.recipes.filter(r=>r.section==='Homestead').length,recipes,sections:[...new Set(pack.recipes.map(r=>r.section))],categories:[...new Set(pack.recipes.map(r=>r.category))].sort(),guides:pack.guides.map(({id,title,summary})=>({id,title,summary})),mealChains:pack.mealChains,ingredients:ingredientList(pack),references:pack.references};
+  return {title:pack.title,total:recipes.length,recipeCount:pack.recipes.length,homesteadCount:pack.recipes.filter(r=>r.section==='Homestead').length,recipes,sections:[...new Set(pack.recipes.map(r=>r.section))],categories:[...new Set(pack.recipes.map(r=>r.category))].sort(),guides:pack.guides.map(({id,title,summary})=>({id,title,summary})),matchingGuides:searchGuides(pack,params.q||'').map(({id,title,summary})=>({id,title,summary})),mealChains:pack.mealChains,ingredients:ingredientList(pack),references:pack.references};
 }

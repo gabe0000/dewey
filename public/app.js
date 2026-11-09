@@ -25,8 +25,9 @@ async function api(url,options) {
     return body;}
 async function catalog() {
   const seq=++sequence;
+  const query=$('query').value.trim();
   try {
-    const data=await api(`/api/catalog?q=${encodeURIComponent($('query').value)}&topic=${encodeURIComponent($('topic').value)}`);
+    const data=await api(`/api/catalog?q=${encodeURIComponent(query)}&topic=${encodeURIComponent($('topic').value)}`);
     if(seq!==sequence)return;
     if($('topic').options.length===1) for(const t of data.topics) {const option=el('option',t);option.value=t;
     $('topic').append(option);}
@@ -34,9 +35,11 @@ async function catalog() {
     for(const d of data.documents) {const button=el('button','');
       button.className='book';
       button.append(el('small',d.topic),el('h2',d.title),el('span',d.kind==='bible'?`${d.translation} · ${d.bookCount} books · ${d.verseCount.toLocaleString()} verses →`:d.kind==='pdf'?`${d.pageCount} pages · illustrated PDF →`:d.kind==='lessons'?`${d.lessonCount} lessons · start here →`:d.kind==='recipes'?`${d.recipeCount} recipes · ${d.homesteadCount} homestead meals →`:`${d.license} · verified source →`));
+      if(d.kind==='recipes'&&query)button.children[2].textContent=`${d.matchingRecipeCount} matching recipes · ${d.matchingGuideCount} matching guides →`;
       button.onclick=()=>{
-        const nextHash = '#' + encodeURIComponent(d.id);
-        if (location.hash === nextHash) return view(d.id);
+        const params=d.kind==='recipes'?new URLSearchParams({q:query,section:query?'':'Homestead',difficulty:query?'':'Simple',category:'',tab:'Recipes'}):undefined;
+        const nextHash = '#' + encodeURIComponent(d.id)+(params?'?'+params:'');
+        if (location.hash === nextHash) return view(d.id,undefined,undefined,undefined,params);
         location.hash = nextHash;
       };
     $('catalog').append(button);}
@@ -44,14 +47,14 @@ async function catalog() {
   } catch(e) {if(seq===sequence)showError(e);}
 }
 let readerSequence=0,stopReader=()=>{};
-async function view(id,book,chapterNumber,verseNumber) {const seq=++readerSequence;stopReader();stopReader=()=>{};
+async function view(id,book,chapterNumber,verseNumber,searchParams) {const seq=++readerSequence;stopReader();stopReader=()=>{};
   document.body?.classList.remove('kitchen-open','learning-open');$('reader').className='';
   $('reader').replaceChildren(el('h2','Opening source…'),el('p','Reading and verifying the original file.'));$('reader').setAttribute?.('aria-busy','true');
   try {const d=await api('/api/source/'+encodeURIComponent(id));
     if(seq!==readerSequence)return;
     document.body?.classList.remove('kitchen-open','learning-open');$('reader').className='';
     if(d.kind==='pdf'||d.kind==='lessons'){const {renderLearning}=await import('/learning.js');if(seq!==readerSequence)return;const cleanup=await renderLearning(d,{container:$('reader'),api,el,route:[book,chapterNumber],isCurrent:()=>seq===readerSequence,query:$('query').value});if(seq===readerSequence)stopReader=cleanup;else cleanup();return;}
-    if(d.kind==='recipes'){const {renderRecipes}=await import('/recipes.js');if(seq!==readerSequence)return;return await renderRecipes(d,{container:$('reader'),api,el,token:plannerToken,route:[book,chapterNumber],isCurrent:()=>seq===readerSequence});}
+    if(d.kind==='recipes'){const {renderRecipes}=await import('/recipes.js');if(seq!==readerSequence)return;return await renderRecipes(d,{container:$('reader'),api,el,token:plannerToken,route:[book,chapterNumber],searchParams,isCurrent:()=>seq===readerSequence});}
     if(d.kind==='bible')return await bibleView(d,book,chapterNumber,verseNumber,seq);
     const close=el('button','← Close source');close.onclick=()=>{location.hash='';};
     $('reader').replaceChildren(close,el('small',d.topic),el('h2',d.title),el('pre',d.text),el('h3','Source record'),el('p',`Provenance: ${d.provenance}`),el('p',`License: ${d.license}`),el('p',`File: ${d.file}`),el('p',`SHA-256 (verified now): ${d.sha256}`));$('reader').scrollIntoView?.({block:'start'});} catch(e) {if(seq===readerSequence){showError(e);if(!e.offline){const close=el('button','← Library');close.onclick=()=>{location.hash='';};$('reader').replaceChildren(close,el('h2','Source unavailable'),el('p',e.message));}}}finally{if(seq===readerSequence)$('reader').setAttribute?.('aria-busy','false');}}
@@ -116,12 +119,13 @@ async function bibleView(d,bookId,chapterNumber,verseNumber,seq){
   body.append(paging);
   if(highlighted)highlighted.scrollIntoView({block:'center'});else $('reader').scrollIntoView?.({block:'start'});
 }
-function navigate(){if(location.hash){try{view(...location.hash.slice(1).split('/').map(decodeURIComponent));}catch(error){showError(error);}}else{readerSequence++;stopReader();stopReader=()=>{};$('reader').setAttribute?.('aria-busy','false');document.body?.classList.remove('kitchen-open','learning-open');$('reader').className='';
+async function navigate(){const [path,query='']=location.hash.slice(1).split('?');const params=new URLSearchParams(query);if(path){try{const [id,book,chapter,verse]=path.split('/').map(decodeURIComponent);return await view(id,book,chapter,verse,params);}catch(error){showError(error);}}else{readerSequence++;stopReader();stopReader=()=>{};if(params.has('q')){$('query').value=params.get('q');if(params.has('topic'))$('topic').value=params.get('topic');await catalog();}$('reader').setAttribute?.('aria-busy','false');document.body?.classList.remove('kitchen-open','learning-open');$('reader').className='';
     $('reader').replaceChildren(el('h2','A little library, built to last.'),el('p','Choose a text to read its original source and inspect where it came from.'));}}
 window.addEventListener('hashchange',navigate);
-$('filters').onsubmit=e=>{e.preventDefault();catalog();};
-$('query').oninput=catalog;
-    $('topic').onchange=catalog;
+function searchCatalog(){if(!location.hash.slice(1).split('?')[0])history.replaceState(null,'','#?'+new URLSearchParams({q:$('query').value,topic:$('topic').value}));return catalog();}
+$('filters').onsubmit=e=>{e.preventDefault();return searchCatalog();};
+$('query').oninput=searchCatalog;
+    $('topic').onchange=searchCatalog;
 $('install').onclick=async()=>{ $('install').disabled=true;try {await api('/api/install',{method:'POST',headers:{'X-Dewey-Token':token}});
     $('setup').hidden=true;
     await catalog();} catch(e) {showError(e);
@@ -130,4 +134,4 @@ try {const s=await api('/api/status');token=s.token;plannerToken=s.plannerToken;
     if(s.setup)$('setup').append(el('p',`Sources: ${s.source}. Index: ${s.index}. Change these locations with DEWEY_LIBRARY_ROOT / DEWEY_INDEX or Compose bind mounts before installing. Normal mode mounts sources read-only.`));
     $('setup').hidden=!(s.setup && !s.count);
     if(!s.count&&!s.setup)$('reader').append(el('p','No collection installed. Start the local setup profile described in README.'));
-    await catalog();navigate();} catch(e) {showError(e);}
+    await catalog();await navigate();} catch(e) {showError(e);}

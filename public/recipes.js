@@ -9,8 +9,16 @@ const iso=value=>value?new Date(value).toISOString():null;
 const slug=value=>value.toLowerCase().trim().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
 const duration=n=>n>=60?`${Math.floor(n/60)}h${n%60?' '+n%60+'m':''}`:`${n}m`;
 
-export async function renderRecipes(doc,{container,api,el,token,route,isCurrent}){
-  const state=memories.get(doc.id)||{tab:'Recipes',q:'',section:'Homestead',difficulty:'Simple',category:'',stock:false,checkBasics:false};memories.set(doc.id,state);
+export function recipeFilters(params=new URLSearchParams()){
+  const searching=params.has('q');
+  return {tab:['Recipes','Pantry','Meal plan','Shopping','Kitchen guides'].includes(params.get('tab'))?params.get('tab'):'Recipes',q:(params.get('q')||'').trim(),section:params.get('section')??(searching?'':'Homestead'),difficulty:params.get('difficulty')??(searching?'':'Simple'),category:params.get('category')||'',stock:params.get('stock')==='1',checkBasics:params.get('checkBasics')==='1'};
+}
+export function recipeHash(collection,kind,id,state){
+  const params=new URLSearchParams();for(const key of ['q','section','difficulty','category','tab'])params.set(key,state[key]);for(const key of ['stock','checkBasics'])params.set(key,state[key]?'1':'0');
+  return '#'+[collection,kind,id].filter(Boolean).map(encodeURIComponent).join('/')+'?'+params;
+}
+export async function renderRecipes(doc,{container,api,el,token,route,searchParams,isCurrent}){
+  const state={...memories.get(doc.id),...recipeFilters(searchParams)};memories.set(doc.id,state);
   let household,data,revision=0,request=0;
   const node=(tag,text='',cls)=>{const n=el(tag,text);if(cls)n.className=cls;return n;};
   const button=(text,fn,cls='k-button')=>{const b=node('button',text,cls);b.type='button';b.onclick=fn;return b;};
@@ -18,9 +26,10 @@ export async function renderRecipes(doc,{container,api,el,token,route,isCurrent}
   const input=(type='text',value='')=>{const n=node('input');n.type=type;n.value=value;return n;};
   const select=(values,value)=>{const n=node('select');for(const [key,label] of values){const o=node('option',label);o.value=key;n.append(o);}n.value=value;return n;};
   const checkbox=(label,checked)=>{const n=input('checkbox');n.checked=checked;return {input:n,label:field(label,n)};};
-  const goto=(kind,id)=>{location.hash='#'+[doc.id,kind,id].filter(Boolean).map(encodeURIComponent).join('/');};
+  const href=(kind,id)=>recipeHash(doc.id,kind,id,state);
+  const goto=(kind,id)=>{location.hash=href(kind,id);};
   document.body.classList.add('kitchen-open');container.className='recipes-reader';
-  const top=node('div','','k-top');top.append(button('← Library',()=>{location.hash='';},'k-back'),node('span','DEWEY · THE HOMESTEAD KITCHEN','k-eyebrow'));
+  const top=node('div','','k-top');top.append(button('← Library',()=>{location.hash='#?'+new URLSearchParams({q:state.q});},'k-back'),node('span','DEWEY · THE HOMESTEAD KITCHEN','k-eyebrow'));
   const hero=node('section','','k-hero');hero.append(node('p','A little know-how. A good meal.','k-eyebrow'),node('h2','From the pantry\nto the table.'),node('p','Start with the basics, learn as you cook, and give tomorrow’s leftovers a plan.','k-intro'));
   hero.hidden=Boolean(route[0]);
   const counts=node('div',`${doc.recipeCount} recipes  ·  ${doc.homesteadCount} homestead meals  ·  offline kitchen guides`,'k-counts');hero.append(counts);
@@ -44,7 +53,7 @@ export async function renderRecipes(doc,{container,api,el,token,route,isCurrent}
   const formSubmit=(form,handler)=>{form.onsubmit=async e=>{e.preventDefault();alert.hidden=true;const submits=[...form.querySelectorAll('button[type="submit"]')];submits.forEach(b=>b.disabled=true);try{await handler();}catch(error){notify(error);}finally{submits.forEach(b=>b.disabled=false);}};};
   const submit=(form,label)=>{const b=node('button',label,'k-button primary');b.type='submit';form.append(b);return b;};
   const perform=fn=>async()=>{alert.hidden=true;try{await fn();}catch(error){notify(error);}};
-  async function switchTab(tab){state.tab=tab;if(route[0]){goto();return;}await showTab();}
+  async function switchTab(tab){state.tab=tab;goto();}
   for(const tab of ['Recipes','Pantry','Meal plan','Shopping','Kitchen guides']){const b=button(tab,perform(()=>switchTab(tab)),'k-tab');navButtons.set(tab,b);navigation.append(b);}
   container.replaceChildren(top,hero,navigation,alert,pane);
   function heading(title,description){const h=node('div','','k-section-heading');h.append(node('h3',title));if(description)h.append(node('p',description));pane.append(h);}
@@ -57,29 +66,29 @@ export async function renderRecipes(doc,{container,api,el,token,route,isCurrent}
   }
   function statusText(match){if(match.conflicts.length)return 'Recorded avoidance: '+match.conflicts.join(', ');if(match.unmeasured?.length)return match.unmeasured.length+' ingredient amounts need a manual check';if(!household.state.inventory.some(l=>l.quantity>0))return 'Add your actual pantry to check quantities';return match.ready?'Stock covers listed amounts':match.usesExpected&&!match.missing.length?'Relies on planned leftovers':`${match.covered} of ${match.total} ingredient amounts covered`;}
   async function recipeList(){
-    heading('Start simple. Build confidence.','The first view shows simple homestead recipes. Change the filters whenever you’re ready for more.');
+    heading('Find a recipe','Library searches start across all recipe areas and skill levels. Use the filters to narrow results; clearing the words keeps your selected filters.');
     const controls=node('div','','k-filters'),query=input('search',state.q);query.placeholder='Potatoes, soup, eggs, bread…';
     const area=select([['','All recipes'],...data.sections.map(s=>[s,s])],state.section);
     const level=select([['','All skill levels'],['Simple','Simple'],['Intermediate','Intermediate'],['Project','Project']],state.difficulty);
     const category=select([['','All categories'],...data.categories.map(c=>[c,c])],state.category);
     controls.append(field('Find recipes',query),field('Recipe area',area),field('Skill level',level),field('Category',category));pane.append(controls);
     const stock=checkbox('Sort by what I have',state.stock),basics=checkbox('Check salt, pepper, water and oil too',state.checkBasics),options=node('div','','k-options');options.append(stock.label,basics.label);pane.append(options);
-    const count=node('p','','k-result-count'),grid=node('div','','k-recipe-grid');pane.append(count,grid);
-    async function update(){const seq=++request;state.q=query.value;state.section=area.value;state.difficulty=level.value;state.category=category.value;state.stock=stock.input.checked;state.checkBasics=basics.input.checked;const params=new URLSearchParams({q:state.q,section:state.section,difficulty:state.difficulty,category:state.category,stock:state.stock?'1':'0',checkBasics:state.checkBasics?'1':'0'});try{const result=await api('/api/recipes/'+doc.id+'?'+params);if(seq!==request||!isCurrent())return;count.textContent=result.total+' recipes'+(state.checkBasics?'':' · pantry basics omitted from stock checks');grid.replaceChildren();for(const recipe of result.recipes){const card=button('',()=>goto('recipe',recipe.id),'k-recipe-card');card.append(node('small',recipe.section+' · '+recipe.difficulty),node('strong',recipe.title),node('span',recipe.summary),node('small',(recipe.timeUnknown?'Time not stated':duration(recipe.totalMinutes))+' · '+recipe.servings+' '+recipe.servingUnit),node('span',statusText(recipe.match),'k-stock-note'));grid.append(card);}if(!result.total)grid.append(node('p','No recipes match these filters. Try another ingredient or skill level.'));}catch(error){notify(error);}}
-    let timer;query.oninput=()=>{clearTimeout(timer);timer=setTimeout(update,200);};for(const control of [area,level,category,stock.input,basics.input])control.onchange=update;
+    const count=node('p','','k-result-count'),grid=node('div','','k-recipe-grid'),guideMatches=node('section');pane.append(count,grid,guideMatches);
+    async function update(){if(!isCurrent())return;const seq=++request;state.q=query.value.trim();state.section=area.value;state.difficulty=level.value;state.category=category.value;state.stock=stock.input.checked;state.checkBasics=basics.input.checked;history.replaceState(null,'',href());count.textContent='Searching…';grid.replaceChildren();guideMatches.replaceChildren();const params=new URLSearchParams({q:state.q,section:state.section,difficulty:state.difficulty,category:state.category,stock:state.stock?'1':'0',checkBasics:state.checkBasics?'1':'0'});try{const result=await api('/api/recipes/'+doc.id+'?'+params);if(seq!==request||!isCurrent())return;count.textContent=result.total+' recipes'+(state.q?' matching “'+state.q+'”':'')+(state.checkBasics?'':' · pantry basics omitted from stock checks');grid.replaceChildren();for(const recipe of result.recipes){const card=button('',()=>goto('recipe',recipe.id),'k-recipe-card');card.append(node('small',recipe.section+' · '+recipe.difficulty),node('strong',recipe.title),node('span',recipe.summary),node('small',(recipe.timeUnknown?'Time not stated':duration(recipe.totalMinutes))+' · '+recipe.servings+' '+recipe.servingUnit),node('span',statusText(recipe.match),'k-stock-note'));if(recipe.searchExcerpt)card.append(node('span','Search excerpt: '+recipe.searchExcerpt,'k-fine'));grid.append(card);}if(!result.total)grid.append(node('p','No recipes match these words and filters. Clear a filter or try another ingredient.'));if(result.matchingGuides?.length){guideMatches.append(node('h4','Kitchen guides matching “'+state.q+'”'));for(const g of result.matchingGuides){const a=node('a',g.title+' ↗');a.href=href('guide',g.id);guideMatches.append(a,node('p',g.summary));}}}catch(error){notify(error);}}
+    query.oninput=update;for(const control of [area,level,category,stock.input,basics.input])control.onchange=update;
     await update();sourceRecord();
   }
   async function recipeDetail(id){
     const result=await api('/api/recipes/'+doc.id+'/recipe/'+id+'?checkBasics='+(state.checkBasics?'1':'0'));if(!isCurrent())return;
     const r=result.recipe;state.returnRecipe=r.id;state.returnTitle=r.title;
-    pane.append(button('← Recipes',()=>goto(),'k-back'));heading(r.title,r.summary);
+    pane.append(button(state.q?'← Results for “'+state.q+'”':'← Recipes',()=>{state.tab='Recipes';goto();},'k-back'));heading(r.title,r.summary);
     const meta=node('div','','k-recipe-meta');for(const value of [r.section,r.difficulty,r.timeUnknown?'Time not fully stated':`${r.prepMinutes}m prep`,r.timeUnknown?null:`${r.cookMinutes}m cooking`,r.restMinutes?`${r.restMinutes}m resting/rising`:null,`${r.servings} ${r.servingUnit||'portions'}`].filter(Boolean))meta.append(node('span',value));pane.append(meta);
     const columns=node('div','','k-recipe-detail'),ingredients=node('section','','k-ingredients'),steps=node('section','','k-instructions');
     ingredients.append(node('p',r.equipment.length?'Equipment: '+r.equipment.join(', '):'Check the original steps for equipment before starting.','k-fine'),node('h4','Ingredients'),node('p',statusText(result.match),'k-stock-note'));const list=node('ul');
     for(const [index,i] of r.ingredients.entries()){const item=node('li');item.append(node('strong',amount(i.quantity,i.unit)),node('span',i.label));const checked=result.match.ingredients.find(m=>m.ingredientIndex===index);if(checked?.missing>0)item.append(node('small','Need '+amount(checked.missing,i.unit)+(checked.unitMismatch?' · another recorded unit needs a measurement':'')));else if(i.pantryBasic&&!state.checkBasics)item.append(node('small','Pantry basic · not included in stock check'));list.append(item);}for(const raw of r.unmeasuredIngredients||[]){const item=node('li');item.append(node('span',raw),node('small','Check this amount manually; excluded from quantity matching'));list.append(item);}ingredients.append(list);if(r.sourceNote)ingredients.append(node('p',r.sourceNote,'k-review'));
     ingredients.append(node('p','Listed allergens: '+(r.allergens.length?r.allergens.join(', '):'none identified from the basic ingredients')+'. Check packaged ingredient labels.','k-fine'));
     steps.append(node('h4','One step at a time'));const ol=node('ol','','k-steps');
-    r.steps.forEach((step,n)=>{const item=node('li');item.append(node('span',String(n+1),'k-step-number'),node('p',step.text));if(step.guides.length){const links=node('div','','k-guide-links');for(const id of step.guides){const guide=result.guides.find(g=>g.id===id);const a=node('a',guide.title+' ↗');a.href='#'+doc.id+'/guide/'+id;links.append(a);}item.append(links);}if(step.recipes?.length){const links=node('div','','k-guide-links');for(const id of step.recipes){const a=node('a','Related recipe: '+id.replace(/^community-/, '').replaceAll('-',' ')+' ↗');a.href='#'+doc.id+'/recipe/'+id;links.append(a);}item.append(links);}ol.append(item);});steps.append(ol);columns.append(ingredients,steps);pane.append(columns);
+    r.steps.forEach((step,n)=>{const item=node('li');item.append(node('span',String(n+1),'k-step-number'),node('p',step.text));if(step.guides.length){const links=node('div','','k-guide-links');for(const id of step.guides){const guide=result.guides.find(g=>g.id===id);const a=node('a',guide.title+' ↗');a.href=href('guide',id);links.append(a);}item.append(links);}if(step.recipes?.length){const links=node('div','','k-guide-links');for(const id of step.recipes){const a=node('a','Related recipe: '+id.replace(/^community-/, '').replaceAll('-',' ')+' ↗');a.href=href('recipe',id);links.append(a);}item.append(links);}ol.append(item);});steps.append(ol);columns.append(ingredients,steps);pane.append(columns);
     const planning=node('section','','k-plan-recipe');planning.append(node('h4','Plan this meal'),node('p','Planned portions and expected leftovers are estimates. Actual stock changes only after you log cooking.'));
     const form=node('form','','k-form'),day=input('date',localDate()),portions=input('number',String(r.servings));day.required=true;portions.min='0.25';portions.step='.25';portions.required=true;
     form.append(field('Meal date',day),field(r.servingUnit==='batches'?'Batches to cook':'Portions to cook',portions));const expected=outputFields(r,'Expected to save · estimates only');form.append(expected.section);submit(form,'Add to meal plan').disabled=!household.enabled;

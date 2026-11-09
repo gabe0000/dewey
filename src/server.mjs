@@ -5,7 +5,7 @@ import {randomBytes, timingSafeEqual} from 'node:crypto';
 import {fileURLToPath} from 'node:url';
 import {collection, sourceDocument, install, rebuild, search} from './library.mjs';
 import {bookList,chapter,searchVerses} from './bible.mjs';
-import {recipeCatalog,ingredientList} from './recipes.mjs';
+import {recipeCatalog,ingredientList,searchRecipes,searchGuides} from './recipes.mjs';
 import {readHousehold,writeHousehold} from './household.mjs';
 import {findPages} from './pdf.mjs';
 import {foodReview,matchRecipe,simulatePlans,ingredientKey} from './kitchen.mjs';
@@ -62,7 +62,7 @@ export async function createApp({source=process.env.DEWEY_LIBRARY_ROOT || proces
         finally {installing = false;}
       }
       if(req.method !== 'GET') return send(405,{error:'Method not allowed'});
-      if(url.pathname === '/api/catalog') return send(200,{topics:[...new Set(docs.map(d=>d.topic))].sort(),documents:search(docs,url.searchParams.get('q')||'',url.searchParams.get('topic')||'').map(({text,bytes,pdf,lessonPack,bible,recipePack,...d})=>({...d,...(pdf?{kind:'pdf',pageCount:pdf.pageCount}:lessonPack?{kind:'lessons',lessonCount:lessonPack.lessons.length}:bible?{kind:'bible',bookCount:bible.bookCount,verseCount:bible.verseCount}:recipePack?{kind:'recipes',recipeCount:recipePack.recipes.length,homesteadCount:recipePack.recipes.filter(r=>r.section==='Homestead').length}:{})}))});
+      if(url.pathname === '/api/catalog') return send(200,{topics:[...new Set(docs.map(d=>d.topic))].sort(),documents:search(docs,url.searchParams.get('q')||'',url.searchParams.get('topic')||'').map(({text,bytes,pdf,lessonPack,bible,recipePack,...d})=>({...d,...(pdf?{kind:'pdf',pageCount:pdf.pageCount}:lessonPack?{kind:'lessons',lessonCount:lessonPack.lessons.length}:bible?{kind:'bible',bookCount:bible.bookCount,verseCount:bible.verseCount}:recipePack?{kind:'recipes',recipeCount:recipePack.recipes.length,homesteadCount:recipePack.recipes.filter(r=>r.section==='Homestead').length,matchingRecipeCount:searchRecipes(recipePack,url.searchParams.get('q')||'').length,matchingGuideCount:searchGuides(recipePack,url.searchParams.get('q')||'').length}:{})}))});
       const learningRoute=url.pathname.match(/^\/api\/(pdf|lessons)\/([a-z0-9-]+)$/);
       if(learningRoute){
         const [,kind,id]=learningRoute,cached=docs.find(d=>d.id===id&&(kind==='pdf'?d.pdf:d.lessonPack));
