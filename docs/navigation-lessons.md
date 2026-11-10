@@ -23,3 +23,9 @@ The worked example is 64, 66 and 65 paces over 100 m: average 65, and approximat
 `GET /api/lessons/{collection}` exposes the same validated pack, including numbering, prerequisites, source pages and optional tool name. The existing HTTP discovery/bootstrap contract remains the entry point. The pace form runs locally in the human reader; no agent execution, location lookup or household write endpoint is added. MCP remains unimplemented, uninstalled, unregistered and untested.
 
 The next planned curriculum stage is terrain association and recovery, following supervised repeat practice of the current sixteen lessons.
+
+## Local terrain review
+
+The separate local review pack covers lessons 17–20: ridges/valleys/saddles/reentrants, matching contours to ground, position estimates from known features, and controlled stopping/relocation. Each includes an original example, schematic, four answer checks and source-page links. The installed sixteen-lesson sequence remains unchanged until a separately authorized import.
+
+Optional `practiceBoundary` text appears prominently below a lesson's summary. It must be a nonempty string of at most 2,000 characters, renders as text in an accessible note, and is returned by the existing read-only lesson API. It cannot specify commands or executable markup. The new diagrams are built-in SVGs with descriptions and captions; terrain panels stack in phone layouts. Details and limitations are in [the local review record](terrain-review.md).

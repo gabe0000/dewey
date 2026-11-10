@@ -25,6 +25,7 @@ export async function renderLearning(d,{container,api,el,route,isCurrent,query})
     if(!selected){body.append(el('h3',pack.overviewTitle||'Choose a lesson to begin'));pack.lessons.forEach((l,i)=>{const card=link(`${start+i}. ${l.title}`,hash(d.id,'lesson',l.id));card.className='lesson-card';card.append(el('small',l.duration),el('p',l.summary));body.append(card);});}
     else{
       const l=selected,index=pack.lessons.indexOf(l);body.append(el('small',`LESSON ${start+index} · ${index+1} OF ${pack.lessons.length} IN THIS SERIES · ${l.duration}`),el('h3',l.title),el('p',l.summary));
+      if(l.practiceBoundary){const note=el('aside',l.practiceBoundary);note.className='lesson-boundary';note.setAttribute('role','note');note.setAttribute('aria-label','Practice boundary');body.append(note);}
       const list=(title,items,ordered=false)=>{body.append(el('h4',title));const ul=el(ordered?'ol':'ul','');items.forEach(t=>ul.append(el('li',t)));body.append(ul);};
       list('You will learn',l.goals);list('Gather these',l.equipment);body.append(el('h4','Learn the idea'));l.explanation.forEach(t=>body.append(el('p',t)));
       if(l.diagram)body.append(diagram(l.diagram,el));
@@ -79,6 +80,7 @@ export async function renderLearning(d,{container,api,el,route,isCurrent,query})
   return dispose;
 }
 function diagram(kind,el){
+  if(['terrain-forms','contour-ground','position-evidence','stop-relocate'].includes(kind))return terrainDiagram(kind,el);
   if(['pace-course','handrail','attack-catch','practice-loop'].includes(kind))return fieldDiagram(kind,el);
   if(['compass','bearing','back-bearing','declination'].includes(kind))return compassDiagram(kind,el);
   const figure=el('figure','');figure.className='lesson-diagram';const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.setAttribute('viewBox','0 0 600 280');svg.setAttribute('role','img');
@@ -149,4 +151,42 @@ function fieldDiagram(kind,el){
     add('rect',{x:35,y:55,width:530,height:255,rx:8,fill:'none',stroke:'#a35442','stroke-width':3,'stroke-dasharray':'10 7'});add('polyline',{points:'100,250 100,115 465,115 465,250 100,250',fill:'none',stroke:'#365c47','stroke-width':5});[[100,250],[100,115],[465,115],[465,250]].forEach(([x,y])=>dot(x,y));text(300,30,'Prechecked boundary: stop inside it','middle');text(120,105,'A · bench');text(450,105,'B · tree','end');text(445,280,'C · junction','end');text(110,280,'Start / finish');text(300,195,'Walk together. Check every leg.','middle');
   }
   figure.append(svg,el('figcaption',captions[kind]+' Original schematic; not to scale and not a map for travel.'));return figure;
+}
+
+// Original terrain teaching schematics in this function are dedicated to CC0-1.0.
+function terrainDiagram(kind,el){
+  const figure=el('figure','');figure.className='lesson-diagram terrain-diagram';
+  const captions={'terrain-forms':'Compare raised ground and hollows using the elevation labels, not the outline alone. A saddle is low along a ridge between higher tops; a reentrant is a small valley cut into a slope.', 'contour-ground':'At the same map scale and contour interval, wider contour spacing represents a gentler slope. These paired plan and side sketches show the same 30 m rise over different horizontal distances.', 'position-evidence':'Fictional north-up paper example: sightings from the observer toward B and A are 315° and 045° true. Plot their back bearings 135° and 225° from the correctly identified landmarks. The overlap is an estimate to cross-check, not an exact position guarantee.', 'stop-relocate':'Controlled practice only: stop together and check the evidence. A helper may direct a return only along an already confirmed safe route. If the route cannot be confirmed, stay and seek help rather than searching outward.'};
+  const panels=el('div','');panels.className=kind==='terrain-forms'||kind==='contour-ground'?'terrain-panels':'';figure.append(panels);
+  function panel(title,viewBox='0 0 320 260'){
+    const box=el('div','');box.className='terrain-panel';box.append(el('strong',title));const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.setAttribute('viewBox',viewBox);svg.setAttribute('role','img');svg.setAttribute('aria-label',title);box.append(svg);panels.append(box);
+    const add=(tag,attrs,text)=>{const n=document.createElementNS(svg.namespaceURI,tag);Object.entries(attrs).forEach(([k,v])=>n.setAttribute(k,String(v)));if(text)n.textContent=text;svg.append(n);};
+    const text=(x,y,t,anchor='start',size=15)=>add('text',{x,y,'text-anchor':anchor,'font-family':'system-ui','font-size':size,fill:'#24382f'},t);
+    const path=d=>add('path',{d,fill:'none',stroke:'#927146','stroke-width':3});
+    const line=(x1,y1,x2,y2,color='#365c47',dash)=>add('line',{x1,y1,x2,y2,stroke:color,'stroke-width':3,...(dash?{'stroke-dasharray':dash}:{})});
+    return {add,text,path,line};
+  }
+  if(kind==='terrain-forms'){
+    const ridge=panel('Ridge / spur: raised ground');
+    ['M25 85 C85 85 95 190 160 195 C225 190 235 85 295 85','M25 60 C95 60 115 150 160 160 C205 150 225 60 295 60','M25 35 C105 35 135 110 160 125 C185 110 215 35 295 35'].forEach(ridge.path);
+    [[35,'120'],[60,'110'],[85,'100']].forEach(([y,t])=>ridge.text(268,y-5,t));ridge.text(160,226,'Nose projects toward lower ground','middle',14);
+    const valley=panel('Valley: low ground between sides');
+    ['M25 200 C90 190 105 85 160 70 C215 85 230 190 295 200','M25 165 C95 155 120 60 160 45 C200 60 225 155 295 165','M25 130 C105 120 135 35 160 20 C185 35 215 120 295 130'].forEach(valley.path);
+    [[200,'100'],[165,'110'],[130,'120']].forEach(([y,t])=>valley.text(268,y-6,t));valley.text(160,236,'Indentations point toward higher ground','middle',13);
+    const saddle=panel('Saddle: low pass between higher tops');saddle.path('M30 110 C30 25 120 20 160 78 C200 20 290 25 290 110 C290 190 200 195 160 138 C120 195 30 190 30 110 Z');
+    for(const x of [90,230]){saddle.add('ellipse',{cx:x,cy:109,rx:43,ry:55,fill:'none',stroke:'#927146','stroke-width':3});saddle.add('ellipse',{cx:x,cy:109,rx:22,ry:29,fill:'none',stroke:'#927146','stroke-width':3});saddle.text(x,114,'120','middle',13);}saddle.text(160,114,'Pass','middle',13);saddle.text(160,228,'The pass is below both adjacent tops','middle',14);
+    const hollow=panel('Reentrant: small hollow in a slope');['M30 195 C105 190 125 75 160 65 C195 75 215 190 290 195','M30 155 C110 150 135 50 160 40 C185 50 210 150 290 155','M30 115 C115 110 145 25 160 15 C175 25 205 110 290 115'].forEach(hollow.path);hollow.text(280,190,'100','end');hollow.text(280,150,'110','end');hollow.text(280,110,'120','end');hollow.text(160,236,'Low ground may be dry','middle');
+  }else if(kind==='contour-ground'){
+    for(const [title,xs] of [['Wider spacing: gentler',[40,105,170,235]],['Closer spacing: steeper',[40,60,80,100]]]){
+      const p=panel(title);p.text(160,25,'Plan view · 10 m interval','middle');xs.forEach(x=>p.line(x,70,x,145,'#927146'));p.text(xs[0],62,'100','middle',13);p.text(xs[3],48,'130 m','middle',13);p.line(25,228,295,228,'#899a80');p.line(xs[0],220,xs[3],166);p.text(160,252,'Side view · same 30 m rise','middle',13);
+    }
+  }else if(kind==='position-evidence'){
+    const p=panel('Combine independent evidence','0 0 360 330');p.line(80,65,205,190,'#8a6f43');p.line(280,65,155,190,'#365c47');p.add('ellipse',{cx:180,cy:165,rx:26,ry:18,fill:'#e8eddc',stroke:'#a35442','stroke-width':2,'stroke-dasharray':'6 4'});
+    for(const [x,label] of [[80,'B · 315° true'],[280,'A · 045° true']]){p.add('circle',{cx:x,cy:65,r:7,fill:'#b77935'});p.text(x,37,label,'middle',17);}p.text(8,130,'135° back','start',16);p.text(245,130,'225° back','start',16);p.text(180,270,'Overlap is approximate.','middle',17);p.text(180,298,'Check other features.','middle',17);p.line(332,230,332,190);p.add('path',{d:'M326 197 L332 190 L338 197',fill:'none',stroke:'#365c47','stroke-width':3});p.text(332,177,'N','middle');
+  }else{
+    const p=panel('Controlled-course decision','0 0 360 460');
+    function box(x,y,w,h,lines){p.add('rect',{x,y,width:w,height:h,rx:9,fill:'#e7eddf',stroke:'#71856a','stroke-width':2});lines.forEach((t,i)=>p.text(x+w/2,y+24+i*21,t,'middle',15));}
+    box(70,15,220,54,['Stop. Stay together.']);p.line(180,69,180,92);box(50,92,260,72,['Check last confirmed point,','map and visible evidence.']);p.line(180,164,180,187);box(45,187,270,72,['Can the helper confirm','an already safe return route?']);p.line(130,259,88,320);p.line(230,259,272,320);p.text(70,294,'Yes','middle');p.text(293,294,'No','middle');box(8,320,160,76,['Return together','on that known route.']);box(190,320,160,76,['Stay. Seek help.','Do not search outward.']);p.text(180,436,'Real emergency: use the emergency plan.','middle',14);
+  }
+  figure.append(el('figcaption',captions[kind]+' Original schematic; not to scale, not a field map.'));return figure;
 }

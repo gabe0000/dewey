@@ -8,7 +8,7 @@ import {parsePdf,findPages} from '../src/pdf.mjs';
 import {parseLessons} from '../src/lessons.mjs';
 import {importLearning} from '../scripts/import-learning.mjs';
 import {createApp} from '../src/server.mjs';
-import {estimatePaces} from '../public/learning.js';
+import {estimatePaces,renderLearning} from '../public/learning.js';
 // Original two-page PDF fixture. Generate byte offsets rather than relying on a forgiving parser.
 function pdfFixture(){
   const objects=['<< /Type /Catalog /Pages 2 0 R >>','<< /Type /Pages /Kids [3 0 R 5 0 R] /Count 2 >>'];
@@ -48,4 +48,18 @@ test('pace estimates use the measured course and three whole counts without mixi
   const feet=estimatePaces({courseLength:100,counts:[39,40,41],distance:250,unit:'ft'});assert.equal(feet.unit,'ft');assert.equal(feet.estimatedPaces,100);
   assert.equal(estimatePaces({courseLength:100,counts:[64,66,65],distance:0}).estimatedPaces,0);
   for(const change of [{courseLength:0},{counts:[64,0,65]},{counts:[64,65.5,66]},{counts:[64,65]},{distance:-1},{distance:NaN},{unit:'mixed'}])assert.throws(()=>estimatePaces({courseLength:100,counts:[64,66,65],distance:250,...change}),/measured course/);
+});
+test('terrain lessons validate practice boundaries and render each diagram with text-only notes',async t=>{
+  const previous=global.document;
+  function node(tag,text=''){return {tag,textContent:text,children:[],attributes:{},setAttribute(k,v){this.attributes[k]=v;},append(...items){this.children.push(...items);},replaceChildren(...items){this.children=items;},scrollIntoView(){}};}
+  global.document={body:{classList:{add(){}}},createElementNS:(ns,tag)=>node(tag)};t.after(()=>global.document=previous);
+  const pack=lessonPack();pack.startNumber=17;pack.lessons[0].practiceBoundary='Paper first. <script>untrusted text</script> Stay with the helper.';
+  const walk=n=>[n,...n.children.flatMap(walk)];
+  for(const diagram of ['terrain-forms','contour-ground','position-evidence','stop-relocate']){
+    pack.lessons[0].diagram=diagram;parseLessons(JSON.stringify(pack));const container=node('article');
+    await renderLearning({id:'terrain-test',kind:'lessons',title:pack.title,license:'CC0-1.0',provenance:'Original test fixture',sha256:'test'},{container,api:async()=>pack,el:node,route:['lesson','look'],isCurrent:()=>true});
+    const all=walk(container),note=all.find(n=>n.attributes['aria-label']==='Practice boundary');assert.equal(note.tag,'aside');assert.equal(note.textContent,pack.lessons[0].practiceBoundary);assert.equal(note.children.length,0);
+    assert(all.some(n=>n.tag==='svg'&&n.attributes.role==='img'));assert(all.some(n=>n.tag==='figcaption'&&n.textContent.includes('not a field map')));
+  }
+  for(const value of ['',{},'x'.repeat(2001)]){pack.lessons[0].practiceBoundary=value;assert.throws(()=>parseLessons(JSON.stringify(pack)),/practice boundary/);}
 });
