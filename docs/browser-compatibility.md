@@ -38,6 +38,8 @@ The search regression tests exercise the browser controller and real kitchen ren
 
 ## Responsive changes verified
 
+Guided field navigation was checked in Chrome desktop and a measured 390 × 844 viewport on verified local source copies: lesson numbering 13–16, all four lesson views, four checks per lesson, diagrams, phone selector, pace example, feet calculation and PDF page 133 link/return. No document-wide horizontal overflow was observed. The live GrainBins build then passed the pace example and prerequisite/Back checks. Safari 26.6.2 on the live build passed the pace example in desktop and 390 × 844 Responsive Design Mode, displayed the four-option lesson selector and lesson 16 diagram, and opened its answer disclosure. The phone calculator layout was visually inspected; these are desktop responsive checks, not physical-device tests.
+
 - Phone lesson dropdown replaces the long desktop lesson navigation.
 - PDF fit-width uses the available width instead of a fixed minimum; it redraws after window resizing.
 - Small-screen inputs use 16-pixel text and primary form/navigation controls have at least 44-pixel height. Browser zoom stays available.
@@ -50,4 +52,4 @@ No physical iPhone, iPad, Android phone, or Android tablet was connected or test
 
 The application uses modern JavaScript modules and PDF.js. Installed dependencies are needed before offline use. PDF search uses embedded text rather than OCR; image-only pages may not be found. Lesson completion is not persisted. Long source reads over a slow share still require patience; the loading indicator does not remove that storage latency.
 
-The Node test suite passed all 41 tests after these changes. Those are parser, integrity, copy/rebuild, household, API and preview tests; they are separate from the browser interactions above.
+The Node test suite passed all 49 tests at the guided field navigation milestone. Those are parser, integrity, copy/rebuild, household, API, preview, recipe-navigation and pace-calculation tests; they are separate from the browser interactions above.

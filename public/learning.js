@@ -28,6 +28,7 @@ export async function renderLearning(d,{container,api,el,route,isCurrent,query})
       const list=(title,items,ordered=false)=>{body.append(el('h4',title));const ul=el(ordered?'ol':'ul','');items.forEach(t=>ul.append(el('li',t)));body.append(ul);};
       list('You will learn',l.goals);list('Gather these',l.equipment);body.append(el('h4','Learn the idea'));l.explanation.forEach(t=>body.append(el('p',t)));
       if(l.diagram)body.append(diagram(l.diagram,el));
+      if(l.tool==='pace')body.append(paceTool(el));
       list('Try it',l.practice,true);body.append(el('h4','Check yourself'));
       l.checks.forEach(c=>{const check=el('details','');check.className='answer-check';check.append(el('summary',c.question),el('p',c.answer));body.append(check);});
       body.append(el('h4','Look inside the source'));
@@ -78,6 +79,7 @@ export async function renderLearning(d,{container,api,el,route,isCurrent,query})
   return dispose;
 }
 function diagram(kind,el){
+  if(['pace-course','handrail','attack-catch','practice-loop'].includes(kind))return fieldDiagram(kind,el);
   if(['compass','bearing','back-bearing','declination'].includes(kind))return compassDiagram(kind,el);
   const figure=el('figure','');figure.className='lesson-diagram';const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.setAttribute('viewBox','0 0 600 280');svg.setAttribute('role','img');
   const names={yard:'An example yard map with north upward, a house at the west, a tree to the east and a gate to the south.',scale:'A scale bar with four equal segments, each representing 100 metres.',contours:'Three nested contour lines rise from 100 to 120 metres, showing a hill.',checkpoints:'A known path connects the start, a bench, a junction and the return point.'};svg.setAttribute('aria-label',names[kind]);
@@ -112,4 +114,39 @@ function compassDiagram(kind,el){
     else{const a=point(60),b=point(240);arrow(300,190,...a,'#ab4c3d');arrow(300,190,...b,'#365c47');label(355,110,'060° forward');label(125,285,'240° back');}
   }
   figure.append(svg,el('figcaption',captions[kind]+' Original schematic; not a field map.'));return figure;
+}
+
+export function estimatePaces({courseLength,counts,distance,unit='m'}){
+  if(!['m','ft'].includes(unit)||!Number.isFinite(courseLength)||courseLength<.1||courseLength>10000||!Number.isFinite(distance)||distance<0||distance>1000000||!Array.isArray(counts)||counts.length!==3||counts.some(n=>!Number.isInteger(n)||n<1||n>100000))throw Error('Enter a measured course length, three positive whole pace counts, and a nonnegative target distance in the same unit.');
+  const average=counts.reduce((a,b)=>a+b,0)/counts.length;
+  return {average,paceLength:courseLength/average,per100:average*100/courseLength,estimatedPaces:distance*average/courseLength,unit};
+}
+function paceTool(el){
+  const form=el('form','');form.className='pace-tool';form.append(el('h4','Try your own pace counts'),el('p','Count the same foot each time: one pace is two steps. Use one unit for both distances. Copy your results to your notebook before leaving this lesson.'));
+  const fields=el('div','');fields.className='pace-fields';
+  function field(label,value,min,max,step='any'){const input=el('input','');input.type='number';Object.assign(input,{value,min,max,step,required:true});input.setAttribute('aria-label',label);const wrapper=el('label','');wrapper.append(el('span',label),input);fields.append(wrapper);return input;}
+  const units=el('select','');units.setAttribute('aria-label','Pace distance unit');for(const [value,title] of [['m','Metres'],['ft','Feet']]){const option=el('option',title);option.value=value;units.append(option);}const label=el('label','');label.append(el('span','Distance unit'),units);fields.append(label);
+  const course=field('Measured course length','100','.1','10000'),counts=[1,2,3].map(n=>field('Paces on walk '+n,'','1','100000','1')),target=field('Distance to estimate','250','0','1000000');form.append(fields);
+  const calculate=el('button','Calculate estimate');calculate.type='submit';const example=el('button','Use the worked example');example.type='button';const output=el('p','Enter all three counts to calculate.');output.setAttribute('role','status');output.setAttribute('aria-live','polite');form.append(calculate,example,output,el('p','An estimate, not a position fix. Terrain, footwear, load and fatigue change your pace. Confirm your route with visible features.'));
+  function show(){try{const values={courseLength:Number(course.value),counts:counts.map(n=>Number(n.value)),distance:target.value.trim()?Number(target.value):NaN,unit:units.value};const result=estimatePaces(values),fmt=n=>Number(n.toFixed(2));output.textContent=`Average: ${fmt(result.average)} paces on your ${values.courseLength} ${result.unit} course. About ${fmt(result.per100)} paces per 100 ${result.unit}; ${fmt(result.paceLength)} ${result.unit} per pace. ${values.distance} ${result.unit} ≈ ${fmt(result.estimatedPaces)} paces (about ${Math.round(result.estimatedPaces)} whole paces).`;}catch(error){output.textContent=error.message;}}
+  form.onsubmit=event=>{event.preventDefault();show();};example.onclick=()=>{units.value='m';course.value='100';[64,66,65].forEach((v,i)=>counts[i].value=String(v));target.value='250';show();};for(const input of [course,...counts,target,units])input.oninput=()=>{output.textContent='Values changed. Calculate again to update the estimate.';};return form;
+}
+// Original practice schematics in this function are dedicated to CC0-1.0.
+function fieldDiagram(kind,el){
+  const captions={'pace-course':'Measure a safe level course before counting paces. Three walks of the same measured distance give three counts; count the same foot on every walk.',handrail:'An obvious permitted path is a handrail. The bench, marked tree and junction are collecting features checked in order. Do not leave the path to chase a feature.', 'attack-catch':'An attack point is the last easy-to-confirm landmark before a short precise leg. A catching feature beyond the target is a stop signal if the target is missed.', 'practice-loop':'A fictional practice loop stays inside a prechecked boundary. Walk together, confirm every checkpoint, and stop when the expected evidence is missing.'};
+  const figure=el('figure','');figure.className='lesson-diagram';const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.setAttribute('viewBox','0 0 600 350');svg.setAttribute('role','img');svg.setAttribute('aria-label',captions[kind]);
+  const add=(tag,attrs,text)=>{const n=document.createElementNS(svg.namespaceURI,tag);Object.entries(attrs).forEach(([k,v])=>n.setAttribute(k,String(v)));if(text)n.textContent=text;svg.append(n);};
+  const text=(x,y,t,anchor='start')=>add('text',{x,y,'text-anchor':anchor,'font-size':17,'font-family':'system-ui',fill:'#24382f'},t);
+  const line=(x1,y1,x2,y2,color='#365c47',width=5)=>add('line',{x1,y1,x2,y2,stroke:color,'stroke-width':width});
+  const dot=(x,y)=>add('circle',{cx:x,cy:y,r:9,fill:'#b77935',stroke:'#365c47','stroke-width':2});
+  if(kind==='pace-course'){
+    line(70,145,530,145);line(70,125,70,165);line(530,125,530,165);dot(70,145);dot(530,145);text(70,105,'Start');text(530,105,'Finish','end');text(300,185,'Measured course: example 100 m','middle');text(300,230,'Walk 1: 64 · Walk 2: 66 · Walk 3: 65','middle');text(300,267,'Average: 65 paces per 100 m','middle');text(300,304,'One pace = two natural steps','middle');
+  }else if(kind==='handrail'){
+    line(50,190,550,190,'#bfc9ae',24);line(50,190,550,190,'#365c47',3);[[100,'Bench'],[280,'Marked tree'],[460,'Junction']].forEach(([x,t])=>{dot(x,190);text(x,145,t,'middle');});line(460,190,460,65);text(300,250,'Known features, in the expected order','middle');text(300,295,'Path = handrail','middle');
+  }else if(kind==='attack-catch'){
+    line(50,270,550,270,'#bfc9ae',20);line(270,270,355,140);dot(270,270);dot(355,140);line(70,65,540,65,'#a35442',12);text(300,36,'Catching feature: stop if reached','middle');text(370,145,'Target');text(85,325,'Attack point: path junction');line(270,270,270,290);text(70,238,'Main path');text(385,210,'Short checked leg');
+  }else{
+    add('rect',{x:35,y:55,width:530,height:255,rx:8,fill:'none',stroke:'#a35442','stroke-width':3,'stroke-dasharray':'10 7'});add('polyline',{points:'100,250 100,115 465,115 465,250 100,250',fill:'none',stroke:'#365c47','stroke-width':5});[[100,250],[100,115],[465,115],[465,250]].forEach(([x,y])=>dot(x,y));text(300,30,'Prechecked boundary: stop inside it','middle');text(120,105,'A · bench');text(450,105,'B · tree','end');text(445,280,'C · junction','end');text(110,280,'Start / finish');text(300,195,'Walk together. Check every leg.','middle');
+  }
+  figure.append(svg,el('figcaption',captions[kind]+' Original schematic; not to scale and not a map for travel.'));return figure;
 }

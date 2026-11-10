@@ -12,7 +12,8 @@ export function parseLessons(raw){
     for(const key of ['equipment','goals','explanation','practice'])if(!Array.isArray(l[key])||!l[key].length||l[key].length>30||l[key].some(s=>!text(s)))throw Error('Missing lesson '+key);
     if(!Array.isArray(l.checks)||!l.checks.length||l.checks.some(c=>!text(c.question)||!text(c.answer)))throw Error('Missing lesson checks');
     if(!Array.isArray(l.sources)||!l.sources.length||l.sources.some(s=>!/^([a-z0-9-]+)$/.test(s.document)||!Number.isInteger(s.page)||s.page<1||!text(s.label,300)))throw Error('Invalid lesson source link');
-    if(l.diagram!==undefined&&!['yard','scale','contours','checkpoints','compass','bearing','back-bearing','declination'].includes(l.diagram))throw Error('Unknown lesson diagram');
+    if(l.diagram!==undefined&&!['yard','scale','contours','checkpoints','compass','bearing','back-bearing','declination','pace-course','handrail','attack-catch','practice-loop'].includes(l.diagram))throw Error('Unknown lesson diagram');
+    if(l.tool!==undefined&&l.tool!=='pace')throw Error('Unknown lesson tool');
   }
   return p;
 }

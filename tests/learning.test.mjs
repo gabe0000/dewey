@@ -8,6 +8,7 @@ import {parsePdf,findPages} from '../src/pdf.mjs';
 import {parseLessons} from '../src/lessons.mjs';
 import {importLearning} from '../scripts/import-learning.mjs';
 import {createApp} from '../src/server.mjs';
+import {estimatePaces} from '../public/learning.js';
 // Original two-page PDF fixture. Generate byte offsets rather than relying on a forgiving parser.
 function pdfFixture(){
   const objects=['<< /Type /Catalog /Pages 2 0 R >>','<< /Type /Pages /Kids [3 0 R 5 0 R] /Count 2 >>'];
@@ -35,4 +36,16 @@ test('a subsequent stage resolves an existing lesson prerequisite without overwr
   async function prepare(){const bytes=Buffer.from(JSON.stringify(p));await writeFile(file,bytes);await writeFile(spec,JSON.stringify({schema:1,documents:[{id:'next-stage',title:p.title,format:'lessons-v1',file,sha256:hash(bytes),license:'CC0-1.0',provenance:'Original test stage'}]}));}
   await prepare();await assert.rejects(importLearning(spec,f.source),/prerequisite does not exist/);assert.deepEqual(await readFile(path.join(f.source,'manifest.json')),before);await assert.rejects(readFile(path.join(f.source,'next-stage.txt')),/ENOENT/);
   p.prerequisites[0].lesson='look';await prepare();await importLearning(spec,f.source);const docs=await rebuild(f.source,f.index);assert.equal(docs.find(d=>d.id==='next-stage').lessonPack.startNumber,9);assert.deepEqual(await readFile(path.join(f.source,'test-map.pdf')),f.pdf);
+});
+test('guided field lessons accept only known tools and diagram types',()=>{
+  const p=lessonPack();p.startNumber=13;p.lessons[0].tool='pace';
+  for(const diagram of ['pace-course','handrail','attack-catch','practice-loop']){p.lessons[0].diagram=diagram;assert.equal(parseLessons(JSON.stringify(p)).lessons[0].tool,'pace');}
+  p.lessons[0].tool='external-script';assert.throws(()=>parseLessons(JSON.stringify(p)),/Unknown lesson tool/);
+});
+test('pace estimates use the measured course and three whole counts without mixing units',()=>{
+  const result=estimatePaces({courseLength:100,counts:[64,66,65],distance:250});assert.equal(result.average,65);assert.equal(result.per100,65);assert.equal(result.estimatedPaces,162.5);assert.equal(result.paceLength,100/65);
+  assert.equal(estimatePaces({courseLength:50,counts:[31,33,32],distance:200}).estimatedPaces,128);
+  const feet=estimatePaces({courseLength:100,counts:[39,40,41],distance:250,unit:'ft'});assert.equal(feet.unit,'ft');assert.equal(feet.estimatedPaces,100);
+  assert.equal(estimatePaces({courseLength:100,counts:[64,66,65],distance:0}).estimatedPaces,0);
+  for(const change of [{courseLength:0},{counts:[64,0,65]},{counts:[64,65.5,66]},{counts:[64,65]},{distance:-1},{distance:NaN},{unit:'mixed'}])assert.throws(()=>estimatePaces({courseLength:100,counts:[64,66,65],distance:250,...change}),/measured course/);
 });
