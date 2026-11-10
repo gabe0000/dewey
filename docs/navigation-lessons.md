@@ -1,6 +1,6 @@
 # Navigation lesson sequence
 
-The installed sequence has sixteen lessons in three separate source collections: the first eight map-reading lessons, Compass foundations (9–12), and Guided field navigation (13–16). Importing a later pack appends a new verified original and preserves the preceding originals and manifest. The disposable search index stays separate.
+The installed sequence has twenty lessons in four separate source collections: the first eight map-reading lessons, Compass foundations (9–12), Guided field navigation (13–16), and Terrain association & recovery (17–20). Importing a later pack appends a new verified original and preserves the preceding originals and manifest. The disposable search index stays separate.
 
 Lessons 13–16 use familiar, permitted, supervised practice areas. Each has goals, equipment, an original worked example, a practice sequence, four answer checks, a schematic and links into the installed NWCG PDF. A helper stays with the learner. Practice maps are fictional and not to scale. No region, home location, real route or field competence is inferred.
 
@@ -22,10 +22,10 @@ The worked example is 64, 66 and 65 paces over 100 m: average 65, and approximat
 
 `GET /api/lessons/{collection}` exposes the same validated pack, including numbering, prerequisites, source pages and optional tool name. The existing HTTP discovery/bootstrap contract remains the entry point. The pace form runs locally in the human reader; no agent execution, location lookup or household write endpoint is added. MCP remains unimplemented, uninstalled, unregistered and untested.
 
-The next planned curriculum stage is terrain association and recovery, following supervised repeat practice of the current sixteen lessons.
+Repeat the existing lessons under supervision before progressing. The next planned stage is route planning, following terrain association and controlled recovery practice.
 
-## Local terrain review
+## Terrain association and recovery
 
-The separate local review pack covers lessons 17–20: ridges/valleys/saddles/reentrants, matching contours to ground, position estimates from known features, and controlled stopping/relocation. Each includes an original example, schematic, four answer checks and source-page links. The installed sixteen-lesson sequence remains unchanged until a separately authorized import.
+The fourth installed pack covers lessons 17–20: ridges/valleys/saddles/reentrants, matching contours to ground, position estimates from known features, and controlled stopping/relocation. Each includes an original example, schematic, four answer checks and source-page links. The pack appends a separate original; the preceding sixteen lessons and their originals are preserved.
 
-Optional `practiceBoundary` text appears prominently below a lesson's summary. It must be a nonempty string of at most 2,000 characters, renders as text in an accessible note, and is returned by the existing read-only lesson API. It cannot specify commands or executable markup. The new diagrams are built-in SVGs with descriptions and captions; terrain panels stack in phone layouts. Details and limitations are in [the local review record](terrain-review.md).
+Optional `practiceBoundary` text appears prominently below a lesson's summary. It must be a nonempty string of at most 2,000 characters, renders as text in an accessible note, and is returned by the existing read-only lesson API. It cannot specify commands or executable markup. The new diagrams are built-in SVGs with descriptions and captions; terrain panels stack in phone layouts. Details and limitations are in [the terrain review record](terrain-review.md).

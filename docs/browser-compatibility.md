@@ -1,6 +1,6 @@
 # Browser and device compatibility
 
-Verification date: November 9, 2026. This is a record of observed checks, not a claim that all browsers or devices work.
+Verification dates: November 9–10, 2026. This is a record of observed checks, not a claim that all browsers or devices work.
 
 ## Current access boundary
 
@@ -45,6 +45,12 @@ Guided field navigation was checked in Chrome desktop and a measured 390 × 844 
 - Small-screen inputs use 16-pixel text and primary form/navigation controls have at least 44-pixel height. Browser zoom stays available.
 - Reader arrival scrolls to the selected content. Opening and verification states replace stale content while source reads are pending.
 - PDF zoom remains explicit and source bytes remain unmodified.
+
+## Terrain lesson verification
+
+On November 10, lessons 17–20 passed Safari 26.6.2 desktop checks for all four views, practice notes and answer disclosure; normal PDF page 131 rendering, return and Back/Forward also passed. Responsive Design Mode at 390 × 844 with the default desktop user agent covered all four views/selector, lesson 20 answers, PDF page 42 rendering/return, lesson 16 prerequisite/Back and lesson 19 reload. The position diagram was visually inspected. The test tab was closed and responsive mode exited; security and automation settings were unchanged.
+
+Chrome desktop and a measured 390 × 844 viewport checked all four terrain lessons, notes, diagrams, answers, source links/return, prerequisites, reload and history navigation, with no document-wide overflow. All 50 automated tests passed. Original source integrity and existing household records were checked separately from UI behavior. Real devices and field practice remain untested.
 
 ## Unverified combinations and limits
 
