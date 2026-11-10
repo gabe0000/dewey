@@ -28,6 +28,14 @@ The earlier automated window reported its document as `hidden`, which paused ani
 
 The new four-lesson compass stage was also checked in Chrome's desktop window and measured 390 × 844 viewport: all four lessons, numbering 9–12, diagrams, answer controls, prerequisite link, source-page link and return. Chrome had no document-wide horizontal overflow. Safari's 390 × 844 responsive viewport displayed lessons 9 and 12 with the correct four-option lesson selector and original diagrams.
 
+## Recipe search follow-up
+
+The catalog-to-kitchen query loss was reproduced: a library search for `venison` opened the bare collection and displayed the 20 default simple homestead recipes. The corrected route carries the query and explicit filters; catalog and kitchen now use the same per-record matching rules. The installed collection returns 12 venison matches, including a beef recipe whose retained source explicitly offers venison as a substitute. Search excerpts make that reason visible.
+
+Chrome desktop and measured 390 × 844 checks covered library search, match counts, detail/guide navigation, Back/Forward, direct links, reload, repeated `rice`/`venison` searches, empty/no-result queries and clearing words while retaining filters. Safari 26.6.2 desktop checks covered catalog-to-kitchen search, all-area/all-level reset, skill filtering, detail/guide navigation, Back/Forward, no results and clearing. Safari Responsive Design Mode at 390 × 844 additionally checked repeated searches, no-result recovery, detail reload and Back to matching results. Safari used its default desktop user agent; no real phone was tested. These resumed checks used the live GrainBins preview and performed no household writes.
+
+The search regression tests exercise the browser controller and real kitchen renderer with synthetic data, HTTP result counts, per-record matching, route encoding/defaults, history, clearing and out-of-order responses. All 47 Node tests passed at this milestone.
+
 ## Responsive changes verified
 
 - Phone lesson dropdown replaces the long desktop lesson navigation.
